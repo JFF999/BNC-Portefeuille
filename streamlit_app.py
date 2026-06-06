@@ -1,17 +1,23 @@
 import streamlit as st
 import pandas as pd
 import yfinance as yf
+import requests
+import io
 
 st.set_page_config(page_title="Portefeuille BNC", layout="wide")
 st.title("📈 Mon Portefeuille BNC en Direct")
 
 # Insérez le lien modifié ici
-URL_ONEDRIVE = "https://1drv.ms/x/c/f3dc5429b587ae35/IQQm87v8ehTnQrt_lz2sW1Q5AfP8HhO2zdEv7dsLHkUOoA4?download=1"
+URL_ONEDRIVE = "https://1drv.ms/x/c/f3dc5429b587ae35/IQAm87v8ehTnQrt_lz2sW1Q5AUk-6g4cno5k6CgDX9V0qtU?e=86litp?download=1"
 
 @st.cache_data(ttl=300)  # Rafraîchit les données toutes les 5 minutes maximum
 def charger_donnees_base():
-    # Télécharge et lit l'onglet spécifique du fichier Excel
-    return pd.read_excel(URL_ONEDRIVE, sheet_name='Portefeuille BNC', engine='openpyxl')
+    # 1. On utilise "requests" pour forcer le téléchargement correct du fichier
+    reponse = requests.get(URL_ONEDRIVE)
+    reponse.raise_for_status() # Vérifie que le téléchargement a fonctionné
+    
+    # 2. On lit le fichier directement depuis la mémoire avec "io.BytesIO" et "openpyxl"
+    return pd.read_excel(io.BytesIO(reponse.content), sheet_name='Portefeuille BNC', engine='openpyxl')
 
 def mise_a_jour_prix(df):
     for index, row in df.iterrows():
