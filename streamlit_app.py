@@ -5,7 +5,7 @@ import requests
 import io
 
 st.set_page_config(page_title="Portefeuille BNC", layout="wide")
-st.title("📈 Mon Portefeuille BNC en Direct")
+st.title("📈 BNC")
 
 # Votre lien exact avec ?download=1 ajouté proprement à la fin
 URL_ONEDRIVE = "https://onedrive.live.com/:x:/g/personal/f3dc5429b587ae35/IQAm87v8ehTnQrt_lz2sW1Q5AUk-6g4cno5k6CgDX9V0qtU?download=1"
