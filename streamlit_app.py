@@ -8,7 +8,7 @@ import base64
 st.set_page_config(page_title="Portefeuille BNC", layout="wide")
 st.title("📈 Mon Portefeuille BNC en Direct")
 
-#URL_ONEDRIVE = "https://onedrive.live.com/:x:/g/personal/f3dc5429b587ae35/IQAm87v8ehTnQrt_lz2sW1Q5AUk-6g4cno5k6CgDX9V0qtU?download=1"
+# Collez le lien court exact que OneDrive vous donne (sans RIEN ajouter à la fin)
 LIEN_ONEDRIVE = "https://1drv.ms/x/c/f3dc5429b587ae35/IQAm87v8ehTnQrt_lz2sW1Q5AUk-6g4cno5k6CgDX9V0qtU"
 
 def creer_lien_direct_onedrive(lien):
@@ -17,7 +17,7 @@ def creer_lien_direct_onedrive(lien):
     lien_b64 = lien_b64.replace('/', '_').replace('+', '-').rstrip('=')
     return f"https://api.onedrive.com/v1.0/shares/u!{lien_b64}/root/content"
 
-@st.cache_data(ttl=300)  # Rafraîchit les données toutes les 5 minutes maximum
+@st.cache_data(ttl=300)
 def charger_donnees_base():
     # On génère le lien direct automatiquement
     lien_telechargement = creer_lien_direct_onedrive(LIEN_ONEDRIVE)
