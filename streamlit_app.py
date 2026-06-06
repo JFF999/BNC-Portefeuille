@@ -3,26 +3,24 @@ import pandas as pd
 import yfinance as yf
 import requests
 import io
-import base64
 
 st.set_page_config(page_title="Portefeuille BNC", layout="wide")
 st.title("📈 Mon Portefeuille BNC en Direct")
 
-# Collez le lien court exact que OneDrive vous donne (sans RIEN ajouter à la fin)
-LIEN_ONEDRIVE = "https://1drv.ms/x/c/f3dc5429b587ae35/IQAm87v8ehTnQrt_lz2sW1Q5AUk-6g4cno5k6CgDX9V0qtU"
-
-def creer_lien_direct_onedrive(lien):
-    """Convertit automatiquement un lien de partage en lien de téléchargement API"""
-    lien_b64 = base64.b64encode(lien.encode('utf-8')).decode('utf-8')
-    lien_b64 = lien_b64.replace('/', '_').replace('+', '-').rstrip('=')
-    return f"https://api.onedrive.com/v1.0/shares/u!{lien_b64}/root/content"
+# Votre lien exact avec ?download=1 ajouté proprement à la fin
+URL_ONEDRIVE = "https://onedrive.live.com/:x:/g/personal/f3dc5429b587ae35/IQAm87v8ehTnQrt_lz2sW1Q5AUk-6g4cno5k6CgDX9V0qtU?download=1"
 
 @st.cache_data(ttl=300)
 def charger_donnees_base():
-    # On génère le lien direct automatiquement
-    lien_telechargement = creer_lien_direct_onedrive(LIEN_ONEDRIVE)
-    reponse = requests.get(lien_telechargement)
+    # L'astuce est ici : on fait croire à Microsoft que la requête vient d'un vrai navigateur Web
+    entetes = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
+    
+    reponse = requests.get(URL_ONEDRIVE, headers=entetes, allow_redirects=True)
     reponse.raise_for_status() 
+    
+    # Lecture du fichier Excel en mémoire
     return pd.read_excel(io.BytesIO(reponse.content), sheet_name='Portefeuille BNC', engine='openpyxl')
 
 def mise_a_jour_prix(df):
@@ -30,18 +28,15 @@ def mise_a_jour_prix(df):
         symbole = row.get('Symbole')
         if pd.notna(symbole):
             try:
-                # Requête rapide à Yahoo Finance
                 ticker = yf.Ticker(str(symbole).strip())
                 infos = ticker.history(period="1d")
                 if not infos.empty:
                     prix_actuel = infos['Close'].iloc[-1]
                     
-                    # Mise à jour des données de la ligne
                     df.at[index, 'Prix $'] = prix_actuel
                     achat = row['Achat $']
                     qte = row['Qtée']
                     
-                    # Recalculs mathématiques en direct
                     df.at[index, 'Gain %'] = (prix_actuel - achat) / achat
                     df.at[index, 'Gain $'] = (prix_actuel - achat) * qte
             except Exception:
@@ -53,7 +48,6 @@ try:
         df_base = charger_donnees_base()
         df_live = mise_a_jour_prix(df_base)
     
-    # Affichage du tableau final avec les mêmes formats
     st.dataframe(
         df_live,
         use_container_width=True,
@@ -67,7 +61,6 @@ try:
             "Date Achat": st.column_config.DatetimeColumn(format="YYYY-MM-DD")
         }
     )
-    
     st.success("Données synchronisées avec succès !")
 
 except Exception as e:
