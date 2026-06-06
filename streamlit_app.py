@@ -10,7 +10,7 @@ st.title("📈 Mon Portefeuille BNC en Direct")
 
 # Insérez le lien modifié ici
 #URL_ONEDRIVE = "https://onedrive.live.com/:x:/g/personal/f3dc5429b587ae35/IQAm87v8ehTnQrt_lz2sW1Q5AUk-6g4cno5k6CgDX9V0qtU?download=1"
-URL_ONEDRIVE = "https://1drv.ms/x/c/f3dc5429b587ae35/IQAm87v8ehTnQrt_lz2sW1Q5AUk-6g4cno5k6CgDX9V0qtU?e=T6VP12"
+LIEN_ONEDRIVE = "https://1drv.ms/x/c/f3dc5429b587ae35/IQAm87v8ehTnQrt_lz2sW1Q5AUk-6g4cno5k6CgDX9V0qtU?e=T6VP12"
 
 def creer_lien_direct_onedrive(lien):
     """Convertit automatiquement un lien de partage en lien de téléchargement API"""
