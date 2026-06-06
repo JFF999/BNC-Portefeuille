@@ -8,9 +8,8 @@ import base64
 st.set_page_config(page_title="Portefeuille BNC", layout="wide")
 st.title("📈 Mon Portefeuille BNC en Direct")
 
-# Insérez le lien modifié ici
 #URL_ONEDRIVE = "https://onedrive.live.com/:x:/g/personal/f3dc5429b587ae35/IQAm87v8ehTnQrt_lz2sW1Q5AUk-6g4cno5k6CgDX9V0qtU?download=1"
-LIEN_ONEDRIVE = "https://1drv.ms/x/c/f3dc5429b587ae35/IQAm87v8ehTnQrt_lz2sW1Q5AUk-6g4cno5k6CgDX9V0qtU?e=T6VP12"
+LIEN_ONEDRIVE = "https://1drv.ms/x/c/f3dc5429b587ae35/IQAm87v8ehTnQrt_lz2sW1Q5AUk-6g4cno5k6CgDX9V0qtU"
 
 def creer_lien_direct_onedrive(lien):
     """Convertit automatiquement un lien de partage en lien de téléchargement API"""
