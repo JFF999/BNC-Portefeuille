@@ -8,7 +8,7 @@ st.set_page_config(page_title="Portefeuille BNC", layout="wide")
 st.title("📈 Mon Portefeuille BNC en Direct")
 
 # Insérez le lien modifié ici
-URL_ONEDRIVE = "https://onedrive.live.com/:x:/g/personal/f3dc5429b587ae35/IQAm87v8ehTnQrt_lz2sW1Q5AUk-6g4cno5k6CgDX9V0qtU?rtime=VmODvgTE3kg&redeem=aHR0cHM6Ly8xZHJ2Lm1zL3gvYy9mM2RjNTQyOWI1ODdhZTM1L0lRQW04N3Y4ZWhUblFydF9sejJzVzFRNUFVay02ZzRjbm81azZDZ0RYOVYwcXRVP2U9ODZsaXRw?download=1"
+URL_ONEDRIVE = "https://onedrive.live.com/:x:/g/personal/f3dc5429b587ae35/IQAm87v8ehTnQrt_lz2sW1Q5AUk-6g4cno5k6CgDX9V0qtU?download=1"
 
 @st.cache_data(ttl=300)  # Rafraîchit les données toutes les 5 minutes maximum
 def charger_donnees_base():
