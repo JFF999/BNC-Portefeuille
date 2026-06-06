@@ -11,7 +11,7 @@ URL_ONEDRIVE = "https://1drv.ms/x/c/f3dc5429b587ae35/IQQm87v8ehTnQrt_lz2sW1Q5AfP
 @st.cache_data(ttl=300)  # Rafraîchit les données toutes les 5 minutes maximum
 def charger_donnees_base():
     # Télécharge et lit l'onglet spécifique du fichier Excel
-    return pd.read_excel(URL_ONEDRIVE, sheet_name='Portefeuille BNC')
+    return pd.read_excel(URL_ONEDRIVE, sheet_name='Portefeuille BNC', engine='openpyxl')
 
 def mise_a_jour_prix(df):
     for index, row in df.iterrows():
