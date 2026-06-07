@@ -27,17 +27,28 @@ def mise_a_jour_prix(df):
         symbole = row.get('Symbole')
         if pd.notna(symbole):
             try:
+                # Interrogation des serveurs Yahoo
                 ticker = yf.Ticker(str(symbole).strip())
-                infos = ticker.history(period="1d")
-                if not infos.empty:
-                    prix_actuel = infos['Close'].iloc[-1]
-                    
+                
+                # 1. Mise à jour du Prix courant et des gains
+                infos_historiques = ticker.history(period="1d")
+                if not infos_historiques.empty:
+                    prix_actuel = infos_historiques['Close'].iloc[-1]
                     df.at[index, 'Prix $'] = prix_actuel
+                    
                     achat = row['Achat $']
                     qte = row['Qtée']
-                    
                     df.at[index, 'Gain %'] = (prix_actuel - achat) / achat
                     df.at[index, 'Gain $'] = (prix_actuel - achat) * qte
+                
+                # 2. NOUVEAU : Mise à jour de la Prévision sur 1 an (Consensus des analystes)
+                infos_generales = ticker.info
+                prevision_1an = infos_generales.get('targetMeanPrice')
+                
+                if prevision_1an is not None:
+                    # Remplace la valeur Excel par l'estimation en direct de Yahoo
+                    df.at[index, 'Pré 1an $'] = prevision_1an
+                    
             except Exception:
                 pass
     return df
