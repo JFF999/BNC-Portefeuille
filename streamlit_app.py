@@ -7,7 +7,6 @@ import io
 st.set_page_config(page_title="Portefeuille BNC", layout="wide")
 st.title("📈 BNC")
 
-# Votre lien exact avec ?download=1 ajouté proprement à la fin
 URL_ONEDRIVE = "https://onedrive.live.com/:x:/g/personal/f3dc5429b587ae35/IQAm87v8ehTnQrt_lz2sW1Q5AUk-6g4cno5k6CgDX9V0qtU?download=1"
 
 @st.cache_data(ttl=300)
@@ -54,6 +53,17 @@ try:
             if col in df_live.columns:
                 df_live[col] = df_live[col] * 100
 
+    # CALCUL DYNAMIQUE DES TOTAUX
+    # On calcule la valeur totale (Prix * Quantité) et on fait la somme du Gain
+    valeur_totale = (df_live['Prix $'] * df_live['Qtée']).sum()
+    gain_total = df_live['Gain $'].sum()
+
+    # Affichage des métriques sur deux colonnes (avec espace pour les milliers)
+    col1, col2 = st.columns(2)
+    col1.metric(label="Valeur Totale", value=f"{valeur_totale:,.2f} $".replace(',', ' '))
+    col2.metric(label="Gain Total", value=f"{gain_total:,.2f} $".replace(',', ' '))
+
+    # Affichage du tableau
     st.dataframe(
         df_live,
         use_container_width=True,
