@@ -54,12 +54,6 @@ try:
             if col in df_live.columns:
                 df_live[col] = df_live[col] * 100
 
-    # Si on suppose que la valeur est sur la 1ère ligne (index 0) et la 2ème colonne (index 1 = Colonne B)
-    valeur_b1 = df_base.iloc[0, 1] 
-
-    # Affichage en grand format monétaire
-    st.metric(label="Valeur Totale", value=f"{valeur_b1:,.2f} $")
-
     st.dataframe(
         df_live,
         use_container_width=True,
