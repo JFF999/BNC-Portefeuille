@@ -47,7 +47,14 @@ try:
     with st.spinner("Connexion à OneDrive et Yahoo Finance..."):
         df_base = charger_donnees_base()
         df_live = mise_a_jour_prix(df_base)
-    
+
+        # ---> LA CORRECTION EST ICI <---
+        # On multiplie par 100 toutes les colonnes qui représentent des pourcentages
+        colonnes_pourcentage = ["Pré G %", "Gain %", "Var %"]
+        for col in colonnes_pourcentage:
+            if col in df_live.columns:
+                df_live[col] = df_live[col] * 100
+        
     st.dataframe(
         df_live,
         use_container_width=True,
