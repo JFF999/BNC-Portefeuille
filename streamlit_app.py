@@ -48,7 +48,6 @@ try:
         df_base = charger_donnees_base()
         df_live = mise_a_jour_prix(df_base)
 
-        # ---> LA CORRECTION EST ICI <---
         # On multiplie par 100 toutes les colonnes qui représentent des pourcentages
         colonnes_pourcentage = ["Pré G %", "Gain %", "Var %"]
         for col in colonnes_pourcentage:
