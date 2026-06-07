@@ -58,10 +58,10 @@ try:
     valeur_totale = (df_live['Prix $'] * df_live['Qtée']).sum()
     gain_total = df_live['Gain $'].sum()
 
-    # Affichage des métriques sur deux colonnes (avec espace pour les milliers)
+    # Affichage des métriques sur deux colonnes (Gain en premier, Valeur ensuite)
     col1, col2 = st.columns(2)
-    col1.metric(label="Valeur Totale", value=f"{valeur_totale:,.2f} $".replace(',', ' '))
-    col2.metric(label="Gain Total", value=f"{gain_total:,.2f} $".replace(',', ' '))
+    col1.metric(label="Gain total", value=f"{gain_total:,.2f} $".replace(',', ' '))
+    col2.metric(label="Valeur totale", value=f"{valeur_totale:,.2f} $".replace(',', ' '))
 
     # Affichage du tableau
     st.dataframe(
