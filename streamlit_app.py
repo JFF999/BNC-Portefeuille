@@ -7,12 +7,6 @@ import io
 st.set_page_config(page_title="Portefeuille BNC", layout="wide")
 st.title("📈 BNC")
 
-# Si on suppose que la valeur est sur la 1ère ligne (index 0) et la 2ème colonne (index 1 = Colonne B)
-valeur_b1 = df_base.iloc[0, 1] 
-
-# Affichage en grand format monétaire
-st.metric(label="Valeur Totale", value=f"{valeur_b1:,.2f} $")
-
 # Votre lien exact avec ?download=1 ajouté proprement à la fin
 URL_ONEDRIVE = "https://onedrive.live.com/:x:/g/personal/f3dc5429b587ae35/IQAm87v8ehTnQrt_lz2sW1Q5AUk-6g4cno5k6CgDX9V0qtU?download=1"
 
@@ -28,6 +22,12 @@ def charger_donnees_base():
     
     # Lecture du fichier Excel en mémoire
     return pd.read_excel(io.BytesIO(reponse.content), sheet_name='Portefeuille BNC', engine='openpyxl')
+
+# Si on suppose que la valeur est sur la 1ère ligne (index 0) et la 2ème colonne (index 1 = Colonne B)
+valeur_b1 = df_base.iloc[0, 1] 
+
+# Affichage en grand format monétaire
+st.metric(label="Valeur Totale", value=f"{valeur_b1:,.2f} $")
 
 def mise_a_jour_prix(df):
     for index, row in df.iterrows():
