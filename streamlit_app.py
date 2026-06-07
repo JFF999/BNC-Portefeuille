@@ -86,6 +86,22 @@ try:
         </div>
     """, unsafe_allow_html=True)
 
+    # === NOUVEAU : Fonction de coloration conditionnelle ===
+    def couleur_alerte_vente(valeur):
+        # On s'assure que la cellule n'est pas vide
+        if pd.isna(valeur):
+            return ''
+        
+        # Application des règles de couleurs (en format RGBA transparent pour rester lisible)
+        if valeur <= 5:
+            return 'background-color: rgba(255, 0, 0, 0.3)' # Rouge
+        elif valeur < 15:
+            return 'background-color: rgba(255, 255, 0, 0.3)' # Jaune
+        else:
+            return 'background-color: rgba(0, 255, 0, 0.3)' # Vert
+
+    # On applique le style uniquement sur la colonne "Pré G %"
+    df_stylise = df_live.style.map(couleur_alerte_vente, subset=['Pré G %'])
     # Affichage du tableau
     st.dataframe(
         df_live,
