@@ -58,10 +58,22 @@ try:
     valeur_totale = (df_live['Prix $'] * df_live['Qtée']).sum()
     gain_total = df_live['Gain $'].sum()
 
-    # Affichage des métriques sur deux colonnes (Gain en premier, Valeur ensuite)
-    col1, col2 = st.columns(2)
-    col1.metric(label="Gain total", value=f"{gain_total:,.2f} $".replace(',', ' '))
-    col2.metric(label="Valeur totale", value=f"{valeur_totale:,.2f} $".replace(',', ' '))
+    # Affichage forcé sur une seule ligne pour écran mobile avec HTML
+    gain_formate = f"{gain_total:,.2f} $".replace(',', ' ')
+    valeur_formate = f"{valeur_totale:,.2f} $".replace(',', ' ')
+
+    st.markdown(f"""
+        <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+            <div style="text-align: left;">
+                <p style="margin: 0px; font-size: 14px; color: gray;">Gain total</p>
+                <p style="margin: 0px; font-size: 22px; font-weight: bold;">{gain_formate}</p>
+            </div>
+            <div style="text-align: right;">
+                <p style="margin: 0px; font-size: 14px; color: gray;">Valeur totale</p>
+                <p style="margin: 0px; font-size: 22px; font-weight: bold;">{valeur_formate}</p>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
 
     # Affichage du tableau
     st.dataframe(
