@@ -69,7 +69,7 @@ try:
     valeur_totale = (df_live['Prix $'] * df_live['Qtée']).sum()
     gain_total = df_live['Gain $'].sum()
 
-    # Affichage forcé sur une seule ligne pour écran mobile avec HTML
+    # Affichage des métriques sur une seule ligne pour écran mobile avec HTML
     gain_formate = f"{gain_total:,.2f} $".replace(',', ' ')
     valeur_formate = f"{valeur_totale:,.2f} $".replace(',', ' ')
 
@@ -102,9 +102,10 @@ try:
 
     # On applique le style uniquement sur la colonne "Pré G %"
     df_stylise = df_live.style.map(couleur_alerte_vente, subset=['Pré G %'])
-    # Affichage du tableau
+
+    # Affichage du tableau avec le style appliqué
     st.dataframe(
-        df_live,
+        df_stylise, # <--- On utilise le tableau stylisé ici
         use_container_width=True,
         hide_index=True,
         column_config={
