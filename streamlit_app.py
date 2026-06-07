@@ -61,6 +61,7 @@ try:
         column_config={
             "Pré G %": st.column_config.NumberColumn(format="%.0f %%"),
             "Prix $": st.column_config.NumberColumn(format="$ %.2f"),
+            "Pré 1an $": st.column_config.NumberColumn(format="$ %.2f"),
             "Achat $": st.column_config.NumberColumn(format="$ %.2f"),
             "Gain %": st.column_config.NumberColumn(format="%.0f %%"),
             "Var %": st.column_config.NumberColumn(format="%.0f %%"),
