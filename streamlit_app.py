@@ -124,15 +124,16 @@ try:
         </div>
     """, unsafe_allow_html=True)
 
+    # <= 5 en rouge, entre 5 et 15 en jaune et >= 15 en vert
     def couleur_alerte_vente(valeur):
         if pd.isna(valeur):
             return ''
         if valeur <= 5:
-            return 'background-color: rgba(255, 0, 0, 0.3)'
-        elif valeur < 15:
-            return 'background-color: rgba(255, 255, 0, 0.3)'
+            return 'background-color: rgba(255, 0, 0, 0.3)' # Rouge
+        elif valeur >= 15:
+            return 'background-color: rgba(0, 255, 0, 0.3)' # Vert
         else:
-            return 'background-color: rgba(0, 255, 0, 0.3)'
+            return 'background-color: rgba(255, 255, 0, 0.3)' # Jaune
 
     df_stylise = df_live.style.map(couleur_alerte_vente, subset=['Pré G %'])
 
