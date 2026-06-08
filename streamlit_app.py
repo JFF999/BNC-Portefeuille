@@ -67,11 +67,19 @@ def mise_a_jour_prix(df):
         if pd.notna(symbole):
             try:
                 ticker = yf.Ticker(str(symbole).strip())
-                infos = ticker.history(period="1d")
                 
-                if not infos.empty:
+                # On demande 5 jours d'historique pour être sûr d'avoir le prix de la veille
+                infos = ticker.history(period="5d")
+                
+                # On s'assure d'avoir au moins 2 jours de données (aujourd'hui et la veille)
+                if not infos.empty and len(infos) >= 2:
                     prix_actuel = infos['Close'].iloc[-1]
+                    prix_veille = infos['Close'].iloc[-2]
+                    
                     df.at[index, 'Prix $'] = prix_actuel
+                    
+                    # --- NOUVEAU : Calcul de la variation du jour (Var %) ---
+                    df.at[index, 'Var %'] = (prix_actuel - prix_veille) / prix_veille
                     
                     achat = row['Achat $']
                     qte = row['Qtée']
