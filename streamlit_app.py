@@ -147,17 +147,21 @@ try:
 
     df_stylise = df_live.style.map(couleur_alerte_vente, subset=['Pré G %'])
 
+    # Calcul de la hauteur dynamique pour tout afficher sans barre de défilement
+    hauteur_dynamique = (len(df_live) * 35) + 43
+
     st.dataframe(
         df_stylise,
         use_container_width=True,
         hide_index=True,
+        height=hauteur_dynamique, # NOUVEAU : On applique la hauteur calculée
         column_config={
-            "Pré G %": st.column_config.NumberColumn(format="%.1f %%"),
+            "Pré G %": st.column_config.NumberColumn(format="%.0f %%"),
             "Prix $": st.column_config.NumberColumn(format="$ %.2f"),
             "Pré 1an $": st.column_config.NumberColumn(format="$ %.2f"),
             "Achat $": st.column_config.NumberColumn(format="$ %.2f"),
-            "Gain %": st.column_config.NumberColumn(format="%.1f %%"),
-            "Var %": st.column_config.NumberColumn(format="%.1f %%"),
+            "Gain %": st.column_config.NumberColumn(format="%.0f %%"),
+            "Var %": st.column_config.NumberColumn(format="%.0f %%"),
             "Gain $": st.column_config.NumberColumn(format="$ %.2f"),
             "Date Achat": st.column_config.DatetimeColumn(format="YYYY-MM-DD")
         }
