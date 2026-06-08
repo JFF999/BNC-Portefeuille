@@ -8,13 +8,25 @@ from zoneinfo import ZoneInfo
 
 st.set_page_config(page_title="Portefeuille BNC", layout="wide")
 
-# --- ASTUCE CSS : Forcer les éléments sur la même ligne sur mobile ---
+# --- ASTUCE CSS : Forcer les proportions exactes sur mobile ---
 st.markdown("""
     <style>
-        /* Empêche Streamlit d'empiler les colonnes sur un écran de téléphone */
+        /* Empêche Streamlit d'empiler les colonnes */
         [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important;
             gap: 10px !important;
+        }
+        /* Force le sélecteur à être petit (environ 28% de l'espace) */
+        [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(1) {
+            width: 28% !important;
+            flex: 1 1 28% !important;
+            min-width: 0 !important;
+        }
+        /* Force le bouton à prendre le reste de l'espace (environ 72%) */
+        [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(2) {
+            width: 72% !important;
+            flex: 2.5 1 72% !important;
+            min-width: 0 !important;
         }
     </style>
 """, unsafe_allow_html=True)
