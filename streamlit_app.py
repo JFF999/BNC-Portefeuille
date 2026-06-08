@@ -28,7 +28,7 @@ st.title("📈 BNC")
 heure_actuelle = heure_mise_a_jour()
 
 # --- NOUVEAU : En-tête ultra-compacte sur une seule ligne ---
-col_tri, col_btn = st.columns([1, 1.2])
+col_tri, col_btn = st.columns([1, 2.5])
 
 with col_tri:
     # "collapsed" supprime l'espace vide au-dessus du menu déroulant
