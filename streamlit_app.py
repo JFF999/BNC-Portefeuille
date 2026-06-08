@@ -124,14 +124,15 @@ try:
 
     st.markdown(f"""
         <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
-            <div style="text-align: left;">
+            <div style="flex: 1; text-align: left;">
                 <p style="margin: 0px; font-size: 14px; color: gray;">Gain total</p>
                 <p style="margin: 0px; font-size: 22px; font-weight: bold;">{gain_formate}</p>
             </div>
-            <div style="text-align: right;">
+            <div style="flex: 1; text-align: center;">
                 <p style="margin: 0px; font-size: 14px; color: gray;">Valeur totale</p>
                 <p style="margin: 0px; font-size: 22px; font-weight: bold;">{valeur_formate}</p>
             </div>
+            <div style="flex: 1;"></div> <!-- Espace vide pour forcer le centrage -->
         </div>
     """, unsafe_allow_html=True)
 
