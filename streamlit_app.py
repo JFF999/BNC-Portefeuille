@@ -40,15 +40,12 @@ st.title("📈 BNC")
 
 heure_actuelle = heure_mise_a_jour()
 
-# --- NOUVEAU : En-tête ultra-compacte sur une seule ligne ---
 col_tri, col_btn = st.columns([1, 2.5])
 
 with col_tri:
-    # "collapsed" supprime l'espace vide au-dessus du menu déroulant
     colonne_tri = st.selectbox("Tri", ["Pré G %", "Gain %"], label_visibility="collapsed")
     
 with col_btn:
-    # L'heure est intégrée directement dans le texte du bouton
     if st.button(f"🔄 Rafraîchir ({heure_actuelle})", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
@@ -93,6 +90,12 @@ def mise_a_jour_prix(df):
 try:
     with st.spinner("Connexion à OneDrive et Yahoo Finance..."):
         df_base = charger_donnees_base()
+
+        # --- NOUVEAU : Filtrage des lignes ---
+        # On conserve uniquement les lignes où la colonne "No." n'est pas égale à 0
+        if 'No.' in df_base.columns:
+            df_base = df_base[df_base['No.'] != 0].reset_index(drop=True)
+
         df_live = mise_a_jour_prix(df_base)
 
         colonnes_pourcentage = ["Pré G %", "Gain %", "Var %"]
@@ -124,16 +127,15 @@ try:
         </div>
     """, unsafe_allow_html=True)
 
-    # <= 5 en rouge, entre 5 et 15 en jaune et >= 15 en vert
     def couleur_alerte_vente(valeur):
         if pd.isna(valeur):
             return ''
         if valeur <= 5:
-            return 'background-color: rgba(255, 0, 0, 0.3)' # Rouge
-        elif valeur >= 15:
-            return 'background-color: rgba(0, 255, 0, 0.3)' # Vert
+            return 'background-color: rgba(255, 0, 0, 0.3)'
+        elif valeur < 15:
+            return 'background-color: rgba(255, 255, 0, 0.3)'
         else:
-            return 'background-color: rgba(255, 255, 0, 0.3)' # Jaune
+            return 'background-color: rgba(0, 255, 0, 0.3)'
 
     df_stylise = df_live.style.map(couleur_alerte_vente, subset=['Pré G %'])
 
