@@ -8,25 +8,26 @@ from zoneinfo import ZoneInfo
 
 st.set_page_config(page_title="Portefeuille BNC", layout="wide")
 
-# --- ASTUCE CSS : Forcer les proportions exactes sur mobile ---
+# --- ASTUCE CSS : Forcer les proportions exactes sur mobile (Version Ultra-Robuste) ---
 st.markdown("""
     <style>
-        /* Empêche Streamlit d'empiler les colonnes */
-        [data-testid="stHorizontalBlock"] {
+        /* Désactive le retour à la ligne forcé par Streamlit sur téléphone */
+        div[data-testid="stHorizontalBlock"] {
+            flex-direction: row !important;
             flex-wrap: nowrap !important;
             gap: 10px !important;
         }
-        /* Force le sélecteur à être petit (environ 28% de l'espace) */
-        [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(1) {
-            width: 28% !important;
-            flex: 1 1 28% !important;
-            min-width: 0 !important;
+        /* Première boîte (Sélecteur) : Forcée à 35% de l'écran */
+        div[data-testid="stHorizontalBlock"] > div:nth-child(1) {
+            width: 35% !important;
+            min-width: 35% !important;
+            flex: none !important;
         }
-        /* Force le bouton à prendre le reste de l'espace (environ 72%) */
-        [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(2) {
-            width: 72% !important;
-            flex: 2.5 1 72% !important;
-            min-width: 0 !important;
+        /* Deuxième boîte (Bouton) : Forcée à 65% de l'écran */
+        div[data-testid="stHorizontalBlock"] > div:nth-child(2) {
+            width: 65% !important;
+            min-width: 65% !important;
+            flex: none !important;
         }
     </style>
 """, unsafe_allow_html=True)
