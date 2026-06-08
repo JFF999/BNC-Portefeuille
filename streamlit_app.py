@@ -36,7 +36,7 @@ st.markdown("""
 def heure_mise_a_jour():
     return datetime.now(ZoneInfo("America/Toronto")).strftime("%H:%M")
 
-st.title("📈 BNC")
+st.title("📈 BNC en Direct")
 
 heure_actuelle = heure_mise_a_jour()
 
