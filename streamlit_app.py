@@ -8,33 +8,37 @@ from zoneinfo import ZoneInfo
 
 st.set_page_config(page_title="Portefeuille BNC", layout="wide")
 
-# --- NOUVEAU : Capture de l'heure synchronisée avec les données ---
+# --- ASTUCE CSS : Forcer les éléments sur la même ligne sur mobile ---
+st.markdown("""
+    <style>
+        /* Empêche Streamlit d'empiler les colonnes sur un écran de téléphone */
+        [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important;
+            gap: 10px !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 @st.cache_data(ttl=300)
 def heure_mise_a_jour():
-    # Capture l'heure locale exacte du Québec
     return datetime.now(ZoneInfo("America/Toronto")).strftime("%H:%M")
 
-# --- En-tête avec Sélecteur de tri, Bouton et Heure ---
-col_titre, col_tri, col_btn = st.columns([1.5, 2, 2.5])
-with col_titre:
-    st.title("📈 BNC")
+st.title("📈 BNC")
+
+heure_actuelle = heure_mise_a_jour()
+
+# --- NOUVEAU : En-tête ultra-compacte sur une seule ligne ---
+col_tri, col_btn = st.columns([1, 1.2])
+
 with col_tri:
-    colonne_tri = st.selectbox("Trier le tableau par :", ["Pré G %", "Gain %"])
-with col_btn:
-    st.write("") 
-    st.write("")
-    # Division de l'espace pour mettre le bouton et l'heure côte à côte
-    sub_btn, sub_heure = st.columns([1.2, 1])
+    # "collapsed" supprime l'espace vide au-dessus du menu déroulant
+    colonne_tri = st.selectbox("Tri", ["Pré G %", "Gain %"], label_visibility="collapsed")
     
-    with sub_btn:
-        if st.button("🔄 Rafraîchir"):
-            st.cache_data.clear() # Efface les données ET l'heure en mémoire
-            st.rerun()            # Relance l'application
-            
-    with sub_heure:
-        heure_actuelle = heure_mise_a_jour()
-        # Affichage stylisé à droite du bouton
-        st.markdown(f"<div style='margin-top: 8px; font-size: 14px; color: gray;'>MÀJ : {heure_actuelle}</div>", unsafe_allow_html=True)
+with col_btn:
+    # L'heure est intégrée directement dans le texte du bouton
+    if st.button(f"🔄 Rafraîchir ({heure_actuelle})", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
 
 URL_ONEDRIVE = "https://onedrive.live.com/:x:/g/personal/f3dc5429b587ae35/IQAm87v8ehTnQrt_lz2sW1Q5AUk-6g4cno5k6CgDX9V0qtU?download=1"
 
