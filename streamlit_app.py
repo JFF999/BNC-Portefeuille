@@ -3,21 +3,38 @@ import pandas as pd
 import yfinance as yf
 import requests
 import io
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 st.set_page_config(page_title="Portefeuille BNC", layout="wide")
 
-# --- NOUVEAU : En-tête avec Sélecteur de tri et Bouton ---
-col_titre, col_tri, col_btn = st.columns([2, 2, 1.5])
+# --- NOUVEAU : Capture de l'heure synchronisée avec les données ---
+@st.cache_data(ttl=300)
+def heure_mise_a_jour():
+    # Capture l'heure locale exacte du Québec
+    return datetime.now(ZoneInfo("America/Toronto")).strftime("%H:%M")
+
+# --- En-tête avec Sélecteur de tri, Bouton et Heure ---
+col_titre, col_tri, col_btn = st.columns([1.5, 2, 2.5])
 with col_titre:
     st.title("📈 BNC")
 with col_tri:
     colonne_tri = st.selectbox("Trier le tableau par :", ["Pré G %", "Gain %"])
 with col_btn:
-    st.write("") # Petit espace pour aligner le bouton avec le sélecteur
+    st.write("") 
     st.write("")
-    if st.button("🔄 Rafraîchir"):
-        st.cache_data.clear()
-        st.rerun()
+    # Division de l'espace pour mettre le bouton et l'heure côte à côte
+    sub_btn, sub_heure = st.columns([1.2, 1])
+    
+    with sub_btn:
+        if st.button("🔄 Rafraîchir"):
+            st.cache_data.clear() # Efface les données ET l'heure en mémoire
+            st.rerun()            # Relance l'application
+            
+    with sub_heure:
+        heure_actuelle = heure_mise_a_jour()
+        # Affichage stylisé à droite du bouton
+        st.markdown(f"<div style='margin-top: 8px; font-size: 14px; color: gray;'>MÀJ : {heure_actuelle}</div>", unsafe_allow_html=True)
 
 URL_ONEDRIVE = "https://onedrive.live.com/:x:/g/personal/f3dc5429b587ae35/IQAm87v8ehTnQrt_lz2sW1Q5AUk-6g4cno5k6CgDX9V0qtU?download=1"
 
@@ -66,11 +83,10 @@ try:
             if col in df_live.columns:
                 df_live[col] = df_live[col] * 100
 
-        # --- NOUVEAU : Application du tri selon le choix de l'utilisateur ---
         if colonne_tri == "Pré G %":
-            df_live = df_live.sort_values(by="Pré G %", ascending=True) # Alertes rouges en haut
+            df_live = df_live.sort_values(by="Pré G %", ascending=True) 
         elif colonne_tri == "Gain %":
-            df_live = df_live.sort_values(by="Gain %", ascending=False) # Plus gros gains en haut
+            df_live = df_live.sort_values(by="Gain %", ascending=False) 
 
     valeur_totale = (df_live['Prix $'] * df_live['Qtée']).sum()
     gain_total = df_live['Gain $'].sum()
@@ -118,7 +134,6 @@ try:
             "Date Achat": st.column_config.DatetimeColumn(format="YYYY-MM-DD")
         }
     )
-    st.success("Données synchronisées avec succès !")
-
+    
 except Exception as e:
     st.error(f"Erreur lors du chargement : {e}")
