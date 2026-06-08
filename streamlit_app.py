@@ -6,15 +6,18 @@ import io
 
 st.set_page_config(page_title="Portefeuille BNC", layout="wide")
 
-# --- NOUVEAU : Titre et Bouton alignés sur la même ligne ---
-col_titre, col_btn = st.columns([3, 1])
+# --- NOUVEAU : En-tête avec Sélecteur de tri et Bouton ---
+col_titre, col_tri, col_btn = st.columns([2, 2, 1.5])
 with col_titre:
     st.title("📈 BNC")
+with col_tri:
+    colonne_tri = st.selectbox("Trier le tableau par :", ["Pré G %", "Gain %"])
 with col_btn:
-    st.write("") # Petit espace pour centrer verticalement le bouton
+    st.write("") # Petit espace pour aligner le bouton avec le sélecteur
+    st.write("")
     if st.button("🔄 Rafraîchir"):
-        st.cache_data.clear() # Vide la mémoire de 5 minutes
-        st.rerun()            # Relance l'application immédiatement
+        st.cache_data.clear()
+        st.rerun()
 
 URL_ONEDRIVE = "https://onedrive.live.com/:x:/g/personal/f3dc5429b587ae35/IQAm87v8ehTnQrt_lz2sW1Q5AUk-6g4cno5k6CgDX9V0qtU?download=1"
 
@@ -35,7 +38,6 @@ def mise_a_jour_prix(df):
                 ticker = yf.Ticker(str(symbole).strip())
                 infos = ticker.history(period="1d")
                 
-                # Mise à jour du prix et calcul des gains
                 if not infos.empty:
                     prix_actuel = infos['Close'].iloc[-1]
                     df.at[index, 'Prix $'] = prix_actuel
@@ -45,7 +47,6 @@ def mise_a_jour_prix(df):
                     df.at[index, 'Gain %'] = (prix_actuel - achat) / achat
                     df.at[index, 'Gain $'] = (prix_actuel - achat) * qte
                 
-                # Mise à jour de la prévision sur 1 an
                 infos_generales = ticker.info
                 prevision_1an = infos_generales.get('targetMeanPrice')
                 if prevision_1an is not None:
@@ -60,16 +61,16 @@ try:
         df_base = charger_donnees_base()
         df_live = mise_a_jour_prix(df_base)
 
-        # On multiplie par 100 les colonnes de pourcentage
         colonnes_pourcentage = ["Pré G %", "Gain %", "Var %"]
         for col in colonnes_pourcentage:
             if col in df_live.columns:
                 df_live[col] = df_live[col] * 100
 
-        # --- NOUVEAU : Tri automatique du tableau ---
-        # Met les pourcentages les plus faibles (les alertes rouges) en haut de la liste
-        if "Pré G %" in df_live.columns:
-            df_live = df_live.sort_values(by="Pré G %", ascending=True)
+        # --- NOUVEAU : Application du tri selon le choix de l'utilisateur ---
+        if colonne_tri == "Pré G %":
+            df_live = df_live.sort_values(by="Pré G %", ascending=True) # Alertes rouges en haut
+        elif colonne_tri == "Gain %":
+            df_live = df_live.sort_values(by="Gain %", ascending=False) # Plus gros gains en haut
 
     valeur_totale = (df_live['Prix $'] * df_live['Qtée']).sum()
     gain_total = df_live['Gain $'].sum()
