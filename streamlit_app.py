@@ -126,11 +126,11 @@ try:
         <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
             <div style="flex: 1; text-align: left;">
                 <p style="margin: 0px; font-size: 14px; color: gray;">Gain total</p>
-                <p style="margin: 0px; font-size: 22px; font-weight: bold;">{gain_formate}</p>
+                <p style="margin: 0px; font-size: 20px; font-weight: bold;">{gain_formate}</p>
             </div>
             <div style="flex: 1; text-align: center;">
                 <p style="margin: 0px; font-size: 14px; color: gray;">Valeur totale</p>
-                <p style="margin: 0px; font-size: 22px; font-weight: bold;">{valeur_formate}</p>
+                <p style="margin: 0px; font-size: 20px; font-weight: bold;">{valeur_formate}</p>
             </div>
             <div style="flex: 1;"></div> <!-- Espace vide pour forcer le centrage -->
         </div>
