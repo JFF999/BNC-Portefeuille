@@ -60,11 +60,13 @@ def charger_donnees_base(nom_feuille):
 
 def mise_a_jour_prix(df, est_portefeuille=True):
     """Fonction unique pour mettre à jour Portefeuille ET Prospects"""
+    df['Lien'] = ""
     for index, row in df.iterrows():
         symbole = row.get('Symbole')
         if pd.notna(symbole):
+            symbole_clean = str(symbole).strip()
             try:
-                ticker = yf.Ticker(str(symbole).strip())
+                ticker = yf.Ticker(symbole_clean)
                 infos = ticker.history(period="5d")
                 
                 prix_actuel = None
@@ -93,8 +95,8 @@ def mise_a_jour_prix(df, est_portefeuille=True):
                     if prix_actuel is not None and prix_actuel > 0:
                         df.at[index, 'Pré G %'] = (prevision_1an - prix_actuel) / prix_actuel
                 
-                # --- NOUVEAU : Génération dynamique et automatique du lien Yahoo ---
-                df.at[index, 'Lien Yahoo'] = f"https://ca.finance.yahoo.com/quote/{str(symbole).strip()}"
+                # Génération dynamique du lien Yahoo Finance
+                df.at[index, 'Lien'] = f"https://ca.finance.yahoo.com/quote/{symbole_clean}"
                         
             except Exception:
                 pass
@@ -170,30 +172,28 @@ try:
                 "Gain %": st.column_config.NumberColumn(format="%.1f %%"),
                 "Var %": st.column_config.NumberColumn(format="%.1f %%"),
                 "Gain $": st.column_config.NumberColumn(format="$ %.2f"),
-                "Date Achat": st.column_config.DatetimeColumn(format="YYYY-MM-DD")
+                "Date Achat": st.column_config.DatetimeColumn(format="YYYY-MM-DD"),
+                # extraction dynamique du symbole pour l'affichage du lien cliquable
+                "Lien": st.column_config.LinkColumn("Lien", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)")
             }
         )
 
     # --- ONGLET 2 : PROSPECTS ---
     with tab2:
-        # 1. On supprime la colonne 'Vide' si elle existe pour faire de la place
         if 'Vide' in df_base_prospects.columns:
             df_base_prospects = df_base_prospects.drop(columns=['Vide'])
 
         df_live_prospects = mise_a_jour_prix(df_base_prospects, est_portefeuille=False)
 
-        # 2. Conversion des pourcentages
         colonnes_pourcentage_pro = ["Pré G %", "Var %"]
         for col in colonnes_pourcentage_pro:
             if col in df_live_prospects.columns:
                 df_live_prospects[col] = df_live_prospects[col] * 100
                 
-        # 3. Tri automatique par le plus gros potentiel (Pré G %)
         if "Pré G %" in df_live_prospects.columns:
             df_live_prospects = df_live_prospects.sort_values(by="Pré G %", ascending=False)
 
-        # 4. Réorganisation propre de l'ordre des colonnes pour l'affichage
-        ordre_colonnes_pro = ["Symbole", "Prix $", "Var %", "Pré 1an $", "Pré G %", "Lien Yahoo"]
+        ordre_colonnes_pro = ["Symbole", "Prix $", "Var %", "Pré 1an $", "Pré G %", "Lien"]
         colonnes_valides = [c for c in ordre_colonnes_pro if c in df_live_prospects.columns]
         df_affichage_prospects = df_live_prospects[colonnes_valides]
 
@@ -210,7 +210,8 @@ try:
                 "Var %": st.column_config.NumberColumn("Var %", format="%.1f %%"),
                 "Pré 1an $": st.column_config.NumberColumn("Pré 1an $", format="$ %.2f"),
                 "Pré G %": st.column_config.NumberColumn("Pré G %", format="%.1f %%"),
-                "Lien Yahoo": st.column_config.LinkColumn("Lien Yahoo", display_text="🔗 Yahoo") # <-- NOUVEAU : Lien dynamique cliquable
+                # extraction dynamique du symbole pour l'affichage du lien cliquable
+                "Lien": st.column_config.LinkColumn("Lien", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)")
             }
         )
         
