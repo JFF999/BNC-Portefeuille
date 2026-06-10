@@ -132,8 +132,8 @@ try:
 
     symboles_possedes = set(df_portefeuille_actif['Symbole'].dropna().astype(str).str.strip())
 
-    # --- MODIFICATION : Noms d'onglets abrégés ---
-    tab1, tab2, tab3 = st.tabs(["💰 Portefeuille", "🎯 Pros CAD", "💵 Pros USD"])
+    # --- MODIFICATION : Mêmes icônes (🎯) et remplacement de USD par US ---
+    tab1, tab2, tab3 = st.tabs(["💰 Portefeuille", "🎯 Pros CAD", "🎯 Pros US"])
 
     # --- ONGLET 1 : PORTEFEUILLE ---
     with tab1:
@@ -223,7 +223,7 @@ try:
             return ['background-color: rgba(0, 123, 255, 0.12)'] * len(row)
         return [''] * len(row)
 
-    # --- ONGLET 2 : PROSPECTS CAD (Devenu Pros CAD) ---
+    # --- ONGLET 2 : PROSPECTS CAD (Pros CAD) ---
     with tab2:
         df_prospects_cad = df_live_prospects[df_live_prospects['Devise'] == 'CAD']
         hauteur_cad = (len(df_prospects_cad) * 35) + 43
@@ -243,7 +243,7 @@ try:
             }
         )
 
-    # --- ONGLET 3 : PROSPECTS USD (Devenu Pros USD) ---
+    # --- ONGLET 3 : PROSPECTS USD (Pros US) ---
     with tab3:
         df_prospects_usd = df_live_prospects[df_live_prospects['Devise'] == 'USD']
         hauteur_usd = (len(df_prospects_usd) * 35) + 43
