@@ -118,7 +118,7 @@ try:
     with st.spinner("Connexion à OneDrive et Yahoo Finance..."):
         # Chargement en tâche de fond des deux feuilles Excel
         df_base_portefeuille = charger_donnees_base('Portefeuille BNC')
-        df_base_prospects = charger_donnees_base('Prospects')
+        df_base_prospects = charger_donnees_base('Prospect')
 
     # Création des deux onglets de navigation
     tab1, tab2 = st.tabs(["💰 Portefeuille", "🎯 Prospects"])
