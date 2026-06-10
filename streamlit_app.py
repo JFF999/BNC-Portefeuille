@@ -55,7 +55,7 @@ with col_tri:
     
 with col_btn:
     if st.button(f"🔄 Rafraîchir ({heure_actuelle})", use_container_width=True):
-        st.cache_data.clear() # Ceci vide la mémoire et force un vrai rafraîchissement
+        st.cache_data.clear() 
         st.rerun()
 
 URL_ONEDRIVE = "https://onedrive.live.com/:x:/g/personal/f3dc5429b587ae35/IQAm87v8ehTnQrt_lz2sW1Q5AUk-6g4cno5k6CgDX9V0qtU?download=1"
@@ -69,10 +69,10 @@ def charger_donnees_base(nom_feuille):
     reponse.raise_for_status() 
     return pd.read_excel(io.BytesIO(reponse.content), sheet_name=nom_feuille, engine='openpyxl')
 
-# --- NOUVEAU : On met cette fonction en cache pour ne pas spammer Yahoo Finance quand on touche aux filtres ! ---
+# --- REFACTORISATION : Le calcul du (* 100) est mis à l'intérieur du cache pour bloquer le bug ---
 @st.cache_data(ttl=300, show_spinner=False)
 def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
-    df = df.copy() # Sécurité pour ne pas écraser les données d'origine
+    df = df.copy() 
     df['Devise'] = 'USD'  
     df['Possede'] = False  
     for index, row in df.iterrows():
@@ -99,12 +99,12 @@ def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
                     prix_veille = infos['Close'].iloc[-2]
                     
                     df.at[index, 'Prix $'] = prix_actuel
-                    df.at[index, 'Var %'] = (prix_actuel - prix_veille) / prix_veille
+                    df.at[index, 'Var %'] = ((prix_actuel - prix_veille) / prix_veille) * 100
                     
                     if est_portefeuille and 'Achat $' in row and pd.notna(row['Achat $']):
                         achat = row['Achat $']
                         qte = row['Qtée']
-                        df.at[index, 'Gain %'] = (prix_actuel - achat) / achat
+                        df.at[index, 'Gain %'] = ((prix_actuel - achat) / achat) * 100
                         df.at[index, 'Gain $'] = (prix_actuel - achat) * qte
                 
                 infos_generales = ticker.info
@@ -114,7 +114,7 @@ def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
                     df.at[index, 'Pré 1an $'] = prevision_1an
                     
                     if prix_actuel is not None and prix_actuel > 0:
-                        df.at[index, 'Pré G %'] = (prevision_1an - prix_actuel) / prix_actuel
+                        df.at[index, 'Pré G %'] = ((prevision_1an - prix_actuel) / prix_actuel) * 100
                 
                 devise_officielle = infos_generales.get('currency')
                 if devise_officielle:
@@ -129,14 +129,13 @@ def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
 try:
     with st.spinner("Connexion à OneDrive et Yahoo Finance..."):
         df_base_portefeuille = charger_donnees_base('Portefeuille BNC')
-        df_base_prospects = charger_donnees_base('Prospects')
+        df_base_prospects = charger_donnees_base('Prospects') # Gardé avec le S
 
     if 'No.' in df_base_portefeuille.columns:
         df_portefeuille_actif = df_base_portefeuille[df_base_portefeuille['No.'] != 0].reset_index(drop=True)
     else:
         df_portefeuille_actif = df_base_portefeuille.copy()
 
-    # Transformation en tuple pour assurer la compatibilité avec le système de cache
     symboles_possedes = tuple(set(df_portefeuille_actif['Symbole'].dropna().astype(str).str.strip()))
 
     tab1, tab2, tab3 = st.tabs(["💰 Portefeuille", "🎯 Pros CAD", "🎯 Pros US"])
@@ -144,10 +143,6 @@ try:
     # --- ONGLET 1 : PORTEFEUILLE ---
     with tab1:
         df_live = mise_a_jour_prix(df_portefeuille_actif, est_portefeuille=True)
-
-        for col in ["Pré G %", "Gain %", "Var %"]:
-            if col in df_live.columns:
-                df_live[col] = pd.to_numeric(df_live[col], errors='coerce') * 100
 
         if colonne_tri == "Pré G %":
             df_live = df_live.sort_values(by="Pré G %", ascending=True) 
@@ -210,10 +205,6 @@ try:
     # --- TRAITEMENT CENTRALISÉ DES PROSPECTS ---
     df_live_prospects = mise_a_jour_prix(df_base_prospects, est_portefeuille=False, symboles_portefeuille=symboles_possedes)
 
-    for col in ["Pré G %", "Var %"]:
-        if col in df_live_prospects.columns:
-            df_live_prospects[col] = pd.to_numeric(df_live_prospects[col], errors='coerce') * 100
-
     def surligner_prospects(row):
         if row.get('Possede') == True:
             return ['background-color: rgba(0, 123, 255, 0.12)'] * len(row)
@@ -237,7 +228,7 @@ try:
             ]
             df_prospects_cad = df_prospects_cad.sort_values(by="Pré G %", ascending=False)
 
-        hauteur_cad = (len(df_prospects_cad) * 35) + 43
+        hauteur_cad = (len(df_prospects_cad) * 35) + 43 if len(df_prospects_cad) > 0 else 100
 
         st.dataframe(
             df_prospects_cad.style.apply(surligner_prospects, axis=1),
@@ -272,7 +263,7 @@ try:
             ]
             df_prospects_usd = df_prospects_usd.sort_values(by="Pré G %", ascending=False)
 
-        hauteur_usd = (len(df_prospects_usd) * 35) + 43
+        hauteur_usd = (len(df_prospects_usd) * 35) + 43 if len(df_prospects_usd) > 0 else 100
 
         st.dataframe(
             df_prospects_usd.style.apply(surligner_prospects, axis=1),
