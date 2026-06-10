@@ -60,7 +60,6 @@ def charger_donnees_base(nom_feuille):
 
 def mise_a_jour_prix(df, est_portefeuille=True):
     """Fonction unique pour mettre à jour Portefeuille ET Prospects"""
-    df['Lien'] = ""
     for index, row in df.iterrows():
         symbole = row.get('Symbole')
         if pd.notna(symbole):
@@ -95,8 +94,8 @@ def mise_a_jour_prix(df, est_portefeuille=True):
                     if prix_actuel is not None and prix_actuel > 0:
                         df.at[index, 'Pré G %'] = (prevision_1an - prix_actuel) / prix_actuel
                 
-                # Génération dynamique du lien Yahoo Finance
-                df.at[index, 'Lien'] = f"https://ca.finance.yahoo.com/quote/{symbole_clean}"
+                # --- NOUVEAU : On injecte l'URL directement dans la colonne Symbole ---
+                df.at[index, 'Symbole'] = f"https://ca.finance.yahoo.com/quote/{symbole_clean}"
                         
             except Exception:
                 pass
@@ -164,7 +163,11 @@ try:
             use_container_width=True,
             hide_index=True,
             height=hauteur_dynamique,
+            # Force l'ordre d'affichage et élimine les colonnes de liens ou d'index superflues
+            column_order=["Symbole", "Prix $", "Var %", "Pré 1an $", "Pré G %", "Achat $", "Qtée", "Gain %", "Gain $", "Date Achat"],
             column_config={
+                # Le Symbole extrait dynamiquement le texte de l'URL pour un affichage propre cliquable
+                "Symbole": st.column_config.LinkColumn("Symbole", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)"),
                 "Pré G %": st.column_config.NumberColumn(format="%.1f %%"),
                 "Prix $": st.column_config.NumberColumn(format="$ %.2f"),
                 "Pré 1an $": st.column_config.NumberColumn(format="$ %.2f"),
@@ -172,17 +175,12 @@ try:
                 "Gain %": st.column_config.NumberColumn(format="%.1f %%"),
                 "Var %": st.column_config.NumberColumn(format="%.1f %%"),
                 "Gain $": st.column_config.NumberColumn(format="$ %.2f"),
-                "Date Achat": st.column_config.DatetimeColumn(format="YYYY-MM-DD"),
-                # extraction dynamique du symbole pour l'affichage du lien cliquable
-                "Lien": st.column_config.LinkColumn("Lien", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)")
+                "Date Achat": st.column_config.DatetimeColumn(format="YYYY-MM-DD")
             }
         )
 
     # --- ONGLET 2 : PROSPECTS ---
     with tab2:
-        if 'Vide' in df_base_prospects.columns:
-            df_base_prospects = df_base_prospects.drop(columns=['Vide'])
-
         df_live_prospects = mise_a_jour_prix(df_base_prospects, est_portefeuille=False)
 
         colonnes_pourcentage_pro = ["Pré G %", "Var %"]
@@ -193,25 +191,22 @@ try:
         if "Pré G %" in df_live_prospects.columns:
             df_live_prospects = df_live_prospects.sort_values(by="Pré G %", ascending=False)
 
-        ordre_colonnes_pro = ["Symbole", "Prix $", "Var %", "Pré 1an $", "Pré G %", "Lien"]
-        colonnes_valides = [c for c in ordre_colonnes_pro if c in df_live_prospects.columns]
-        df_affichage_prospects = df_live_prospects[colonnes_valides]
-
-        hauteur_prospects = (len(df_affichage_prospects) * 35) + 43
+        hauteur_prospects = (len(df_live_prospects) * 35) + 43
 
         st.dataframe(
-            df_affichage_prospects,
+            df_live_prospects,
             use_container_width=True,
             hide_index=True,
             height=hauteur_prospects,
+            # Nettoie l'affichage en ne gardant que l'essentiel sur mobile
+            column_order=["Symbole", "Prix $", "Var %", "Pré 1an $", "Pré G %"],
             column_config={
-                "Symbole": st.column_config.TextColumn("Symbole"),
+                # Même configuration de lien cliquable directement sur le Symbole
+                "Symbole": st.column_config.LinkColumn("Symbole", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)"),
                 "Prix $": st.column_config.NumberColumn("Prix $", format="$ %.2f"),
                 "Var %": st.column_config.NumberColumn("Var %", format="%.1f %%"),
                 "Pré 1an $": st.column_config.NumberColumn("Pré 1an $", format="$ %.2f"),
-                "Pré G %": st.column_config.NumberColumn("Pré G %", format="%.1f %%"),
-                # extraction dynamique du symbole pour l'affichage du lien cliquable
-                "Lien": st.column_config.LinkColumn("Lien", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)")
+                "Pré G %": st.column_config.NumberColumn("Pré G %", format="%.1f %%")
             }
         )
         
