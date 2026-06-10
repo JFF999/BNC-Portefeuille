@@ -73,7 +73,7 @@ def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
             else:
                 df.at[index, 'Devise'] = 'USD'
                 
-            # --- NOUVEAU : Marquage si l'action est déjà possédée en portefeuille ---
+            # Marquage si l'action est déjà possédée en portefeuille
             if symboles_portefeuille and symbole_clean in symboles_portefeuille:
                 df.at[index, 'Possede'] = True
                 
@@ -124,7 +124,7 @@ try:
         df_base_portefeuille = charger_donnees_base('Portefeuille BNC')
         df_base_prospects = charger_donnees_base('Prospects')
 
-    # --- NOUVEAU : Extraction des symboles possédés actifs avant transformation ---
+    # Extraction des symboles possédés actifs avant transformation
     if 'No.' in df_base_portefeuille.columns:
         df_portefeuille_actif = df_base_portefeuille[df_base_portefeuille['No.'] != 0].reset_index(drop=True)
     else:
@@ -132,8 +132,8 @@ try:
 
     symboles_possedes = set(df_portefeuille_actif['Symbole'].dropna().astype(str).str.strip())
 
-    # --- DÉFINITION DES 3 ONGLETS ---
-    tab1, tab2, tab3 = st.tabs(["💰 Portefeuille", "🎯 Prospects CAD", "💵 Prospects USD"])
+    # --- MODIFICATION : Noms d'onglets abrégés ---
+    tab1, tab2, tab3 = st.tabs(["💰 Portefeuille", "🎯 Pros CAD", "💵 Pros USD"])
 
     # --- ONGLET 1 : PORTEFEUILLE ---
     with tab1:
@@ -218,19 +218,18 @@ try:
         ]
         df_live_prospects = df_live_prospects.sort_values(by="Pré G %", ascending=False)
 
-    # --- NOUVEAU : Fonction CSS pour surligner les lignes possédées ---
     def surligner_prospects(row):
         if row.get('Possede') == True:
             return ['background-color: rgba(0, 123, 255, 0.12)'] * len(row)
         return [''] * len(row)
 
-    # --- ONGLET 2 : PROSPECTS CAD ---
+    # --- ONGLET 2 : PROSPECTS CAD (Devenu Pros CAD) ---
     with tab2:
         df_prospects_cad = df_live_prospects[df_live_prospects['Devise'] == 'CAD']
         hauteur_cad = (len(df_prospects_cad) * 35) + 43
 
         st.dataframe(
-            df_prospects_cad.style.apply(surligner_prospects, axis=1), # <-- On applique le surlignage
+            df_prospects_cad.style.apply(surligner_prospects, axis=1),
             use_container_width=True,
             hide_index=True,
             height=hauteur_cad,
@@ -244,13 +243,13 @@ try:
             }
         )
 
-    # --- ONGLET 3 : PROSPECTS USD ---
+    # --- ONGLET 3 : PROSPECTS USD (Devenu Pros USD) ---
     with tab3:
         df_prospects_usd = df_live_prospects[df_live_prospects['Devise'] == 'USD']
         hauteur_usd = (len(df_prospects_usd) * 35) + 43
 
         st.dataframe(
-            df_prospects_usd.style.apply(surligner_prospects, axis=1), # <-- On applique le surlignage
+            df_prospects_usd.style.apply(surligner_prospects, axis=1),
             use_container_width=True,
             hide_index=True,
             height=hauteur_usd,
