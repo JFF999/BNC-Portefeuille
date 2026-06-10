@@ -60,10 +60,18 @@ def charger_donnees_base(nom_feuille):
 
 def mise_a_jour_prix(df, est_portefeuille=True):
     """Fonction unique pour mettre à jour Portefeuille ET Prospects"""
+    df['Devise'] = 'USD'  # Valeur par défaut
     for index, row in df.iterrows():
         symbole = row.get('Symbole')
         if pd.notna(symbole):
             symbole_clean = str(symbole).strip()
+            
+            # Prédilection de secours de la devise basée sur le symbole
+            if symbole_clean.endswith('.TO') or '.V' in symbole_clean or '.NE' in symbole_clean:
+                df.at[index, 'Devise'] = 'CAD'
+            else:
+                df.at[index, 'Devise'] = 'USD'
+                
             try:
                 ticker = yf.Ticker(symbole_clean)
                 infos = ticker.history(period="5d")
@@ -94,6 +102,11 @@ def mise_a_jour_prix(df, est_portefeuille=True):
                     if prix_actuel is not None and prix_actuel > 0:
                         df.at[index, 'Pré G %'] = (prevision_1an - prix_actuel) / prix_actuel
                 
+                # Récupération en temps réel de la devise officielle marché
+                devise_officielle = infos_generales.get('currency')
+                if devise_officielle:
+                    df.at[index, 'Devise'] = str(devise_officielle).upper()
+                
                 # On injecte l'URL directement dans la colonne Symbole
                 df.at[index, 'Symbole'] = f"https://ca.finance.yahoo.com/quote/{symbole_clean}"
                         
@@ -106,27 +119,28 @@ try:
         df_base_portefeuille = charger_donnees_base('Portefeuille BNC')
         df_base_prospects = charger_donnees_base('Prospects')
 
-    tab1, tab2 = st.tabs(["💰 Portefeuille", "🎯 Prospects"])
+    # --- DÉFINITION DES 3 ONGLETS ---
+    tab1, tab2, tab3 = st.tabs(["💰 Portefeuille", "🎯 Prospects CAD", "💵 Prospects USD"])
 
     # --- ONGLET 1 : PORTEFEUILLE ---
     with tab1:
         if 'No.' in df_base_portefeuille.columns:
             df_base_portefeuille = df_base_portefeuille[df_base_portefeuille['No.'] != 0].reset_index(drop=True)
 
-        df_live = mise_a_jour_prix(df_base_portefeuille, est_portefeuille=True)
+        df_live_portefeuille = mise_a_jour_prix(df_base_portefeuille, est_portefeuille=True)
 
         colonnes_pourcentage = ["Pré G %", "Gain %", "Var %"]
         for col in colonnes_pourcentage:
-            if col in df_live.columns:
-                df_live[col] = df_live[col] * 100
+            if col in df_live_portefeuille.columns:
+                df_live_portefeuille[col] = df_live_portefeuille[col] * 100
 
         if colonne_tri == "Pré G %":
-            df_live = df_live.sort_values(by="Pré G %", ascending=True) 
+            df_live_portefeuille = df_live_portefeuille.sort_values(by="Pré G %", ascending=True) 
         elif colonne_tri == "Gain %":
-            df_live = df_live.sort_values(by="Gain %", ascending=False) 
+            df_live_portefeuille = df_live_portefeuille.sort_values(by="Gain %", ascending=False) 
 
-        valeur_totale = (df_live['Prix $'] * df_live['Qtée']).sum()
-        gain_total = df_live['Gain $'].sum()
+        valeur_totale = (df_live_portefeuille['Prix $'] * df_live_portefeuille['Qtée']).sum()
+        gain_total = df_live_portefeuille['Gain $'].sum()
 
         gain_formate = f"{gain_total:,.2f} $".replace(',', ' ')
         valeur_formate = f"{valeur_totale:,.2f} $".replace(',', ' ')
@@ -155,8 +169,8 @@ try:
             else:
                 return 'background-color: rgba(0, 255, 0, 0.3)'
 
-        df_stylise = df_live.style.map(couleur_alerte_vente, subset=['Pré G %'])
-        hauteur_dynamique = (len(df_live) * 35) + 43
+        df_stylise = df_live_portefeuille.style.map(couleur_alerte_vente, subset=['Pré G %'])
+        hauteur_dynamique = (len(df_live_portefeuille) * 35) + 43
 
         st.dataframe(
             df_stylise,
@@ -178,31 +192,52 @@ try:
             }
         )
 
-    # --- ONGLET 2 : PROSPECTS ---
+    # --- TRAITEMENT ET FILTRAGE CENTRALISÉ DES PROSPECTS ---
+    df_live_prospects = mise_a_jour_prix(df_base_prospects, est_portefeuille=False)
+
+    colonnes_pourcentage_pro = ["Pré G %", "Var %"]
+    for col in colonnes_pourcentage_pro:
+        if col in df_live_prospects.columns:
+            df_live_prospects[col] = df_live_prospects[col] * 100
+            
+    if "Pré G %" in df_live_prospects.columns:
+        # Filtre global (Potentiel entre 30% et 100%)
+        df_live_prospects = df_live_prospects[
+            (df_live_prospects["Pré G %"] >= 30) & 
+            (df_live_prospects["Pré G %"] <= 100)
+        ]
+        df_live_prospects = df_live_prospects.sort_values(by="Pré G %", ascending=False)
+
+    # --- ONGLET 2 : PROSPECTS CAD ---
     with tab2:
-        df_live_prospects = mise_a_jour_prix(df_base_prospects, est_portefeuille=False)
-
-        colonnes_pourcentage_pro = ["Pré G %", "Var %"]
-        for col in colonnes_pourcentage_pro:
-            if col in df_live_prospects.columns:
-                df_live_prospects[col] = df_live_prospects[col] * 100
-                
-        # --- NOUVEAU : Filtrage des Prospects entre 30% et 100% de croissance ---
-        if "Pré G %" in df_live_prospects.columns:
-            df_live_prospects = df_live_prospects[
-                (df_live_prospects["Pré G %"] >= 30) & 
-                (df_live_prospects["Pré G %"] <= 100)
-            ]
-            # Le tri garde toujours le plus haut potentiel en haut
-            df_live_prospects = df_live_prospects.sort_values(by="Pré G %", ascending=False)
-
-        hauteur_prospects = (len(df_live_prospects) * 35) + 43
+        df_prospects_cad = df_live_prospects[df_live_prospects['Devise'] == 'CAD']
+        hauteur_cad = (len(df_prospects_cad) * 35) + 43
 
         st.dataframe(
-            df_live_prospects,
+            df_prospects_cad,
             use_container_width=True,
             hide_index=True,
-            height=hauteur_prospects,
+            height=hauteur_cad,
+            column_order=["Symbole", "Prix $", "Var %", "Pré 1an $", "Pré G %"],
+            column_config={
+                "Symbole": st.column_config.LinkColumn("Symbole", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)"),
+                "Prix $": st.column_config.NumberColumn("Prix $", format="$ %.2f"),
+                "Var %": st.column_config.NumberColumn("Var %", format="%.1f %%"),
+                "Pré 1an $": st.column_config.NumberColumn("Pré 1an $", format="$ %.2f"),
+                "Pré G %": st.column_config.NumberColumn("Pré G %", format="%.1f %%")
+            }
+        )
+
+    # --- ONGLET 3 : PROSPECTS USD ---
+    with tab3:
+        df_prospects_usd = df_live_prospects[df_live_prospects['Devise'] == 'USD']
+        hauteur_usd = (len(df_prospects_usd) * 35) + 43
+
+        st.dataframe(
+            df_prospects_usd,
+            use_container_width=True,
+            hide_index=True,
+            height=hauteur_usd,
             column_order=["Symbole", "Prix $", "Var %", "Pré 1an $", "Pré G %"],
             column_config={
                 "Symbole": st.column_config.LinkColumn("Symbole", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)"),
