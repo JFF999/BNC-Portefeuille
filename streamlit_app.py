@@ -8,23 +8,34 @@ from zoneinfo import ZoneInfo
 
 st.set_page_config(page_title="Portefeuille BNC", layout="wide")
 
-# --- ASTUCE CSS : Forcer les proportions exactes sur mobile ---
+# --- ASTUCE CSS : Forcer les proportions exactes sur mobile (Version Évoluée) ---
 st.markdown("""
     <style>
-        div[data-testid="stHorizontalBlock"] {
+        /* 1. S'applique uniquement au bloc de tri/rafraîchissement tout en haut */
+        div[data-testid="stHorizontalBlock"]:has(div[data-testid="stSelectbox"]) {
             flex-direction: row !important;
             flex-wrap: nowrap !important;
             gap: 10px !important;
         }
-        div[data-testid="stHorizontalBlock"] > div:nth-child(1) {
+        div[data-testid="stHorizontalBlock"]:has(div[data-testid="stSelectbox"]) > div:nth-child(1) {
             width: 35% !important;
             min-width: 35% !important;
             flex: none !important;
         }
-        div[data-testid="stHorizontalBlock"] > div:nth-child(2) {
+        div[data-testid="stHorizontalBlock"]:has(div[data-testid="stSelectbox"]) > div:nth-child(2) {
             width: 65% !important;
             min-width: 65% !important;
             flex: none !important;
+        }
+
+        /* 2. S'applique spécifiquement aux filtres numériques Min/Max des prospects */
+        div[data-testid="stHorizontalBlock"]:has(div[data-testid="stNumberInput"]) {
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            gap: 15px !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(div[data-testid="stNumberInput"]) > div {
+            min-width: 110px !important; /* Largeur minimale de sécurité pour mobile */
         }
     </style>
 """, unsafe_allow_html=True)
@@ -67,13 +78,11 @@ def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
         if pd.notna(symbole):
             symbole_clean = str(symbole).strip()
             
-            # Prédilection de secours de la devise
             if symbole_clean.endswith('.TO') or '.V' in symbole_clean or '.NE' in symbole_clean:
                 df.at[index, 'Devise'] = 'CAD'
             else:
                 df.at[index, 'Devise'] = 'USD'
                 
-            # Marquage si l'action est déjà possédée en portefeuille
             if symboles_portefeuille and symbole_clean in symboles_portefeuille:
                 df.at[index, 'Possede'] = True
                 
@@ -90,7 +99,6 @@ def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
                     df.at[index, 'Prix $'] = prix_actuel
                     df.at[index, 'Var %'] = (prix_actuel - prix_veille) / prix_veille
                     
-                    # Seulement pour le Portefeuille
                     if est_portefeuille and 'Achat $' in row and pd.notna(row['Achat $']):
                         achat = row['Achat $']
                         qte = row['Qtée']
@@ -103,11 +111,9 @@ def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
                 if prevision_1an is not None:
                     df.at[index, 'Pré 1an $'] = prevision_1an
                     
-                    # Calcul dynamique de la Pré G %
                     if prix_actuel is not None and prix_actuel > 0:
                         df.at[index, 'Pré G %'] = (prevision_1an - prix_actuel) / prix_actuel
                 
-                # Récupération de la devise officielle
                 devise_officielle = infos_generales.get('currency')
                 if devise_officielle:
                     df.at[index, 'Devise'] = str(devise_officielle).upper()
@@ -201,7 +207,6 @@ try:
     # --- TRAITEMENT CENTRALISÉ DES PROSPECTS ---
     df_live_prospects = mise_a_jour_prix(df_base_prospects, est_portefeuille=False, symboles_portefeuille=symboles_possedes)
 
-    # Conversion en numérique
     for col in ["Pré G %", "Var %"]:
         if col in df_live_prospects.columns:
             df_live_prospects[col] = pd.to_numeric(df_live_prospects[col], errors='coerce') * 100
@@ -213,16 +218,16 @@ try:
 
     # --- ONGLET 2 : PROSPECTS CAD ---
     with tab2:
-        # Contrôles Min / Max spécifiques pour le CAD
-        col_min, col_max = st.columns(2)
+        # Configuration asymétrique des colonnes [1, 1, 2] pour un rendu parfait PC / Téléphone
+        col_min, col_max, col_vide = st.columns([1, 1, 2])
         with col_min:
-            min_cad = st.number_input("Min %", value=30.0, step=5.0, key="min_cad")
+            # Remplacement des valeurs par des entiers purs (sans .0)
+            min_cad = st.number_input("Min %", value=30, step=5, key="min_cad")
         with col_max:
-            max_cad = st.number_input("Max %", value=100.0, step=5.0, key="max_cad")
+            max_cad = st.number_input("Max %", value=100, step=5, key="max_cad")
 
         df_prospects_cad = df_live_prospects[df_live_prospects['Devise'] == 'CAD']
         
-        # Filtrage dynamique selon vos entrées
         if "Pré G %" in df_prospects_cad.columns:
             df_prospects_cad = df_prospects_cad[
                 (df_prospects_cad["Pré G %"] >= min_cad) & 
@@ -249,16 +254,16 @@ try:
 
     # --- ONGLET 3 : PROSPECTS US ---
     with tab3:
-        # Contrôles Min / Max spécifiques pour l'US
-        col_min_us, col_max_us = st.columns(2)
+        # Configuration asymétrique des colonnes [1, 1, 2] pour un rendu parfait PC / Téléphone
+        col_min_us, col_max_us, col_vide_us = st.columns([1, 1, 2])
         with col_min_us:
-            min_us = st.number_input("Min %", value=30.0, step=5.0, key="min_us")
+            # Remplacement des valeurs par des entiers purs (sans .0)
+            min_us = st.number_input("Min %", value=30, step=5, key="min_us")
         with col_max_us:
-            max_us = st.number_input("Max %", value=100.0, step=5.0, key="max_us")
+            max_us = st.number_input("Max %", value=100, step=5, key="max_us")
 
         df_prospects_usd = df_live_prospects[df_live_prospects['Devise'] == 'USD']
         
-        # Filtrage dynamique selon vos entrées
         if "Pré G %" in df_prospects_usd.columns:
             df_prospects_usd = df_prospects_usd[
                 (df_prospects_usd["Pré G %"] >= min_us) & 
