@@ -133,22 +133,38 @@ def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
                 pass
     return df
 
-# --- LOGIQUE DE CALCUL INTELLIGENTE ET SÉCURISÉE ---
+# --- LOGIQUE DE CALCUL INTELLIGENTE ET HYPER-SÉCURISÉE ---
 def calculer_potentiel_gain(df, source):
     df = df.copy()
     if 'Prix $' not in df.columns:
         return df
         
     prix = pd.to_numeric(df['Prix $'], errors='coerce')
-    yahoo = pd.to_numeric(df.get('Pré 1an $', np.nan), errors='coerce')
     
-    # Remplacement automatique des 0 par "Vide" (NaN) pour la colonne Affaires
-    affaires = pd.to_numeric(df.get('Pré 1an $ Affaires', np.nan), errors='coerce').replace(0, np.nan)
+    # Sécurité sur la colonne Yahoo de base
+    if 'Pré 1an $' in df.columns:
+        yahoo = pd.to_numeric(df['Pré 1an $'], errors='coerce')
+    else:
+        yahoo = pd.Series(np.nan, index=df.index)
+        
+    # --- LA CORRECTION EST ICI ---
+    # Recherche robuste : trouve n'importe quelle colonne contenant "Aff" (ex: "Pré 1an Aff", "Affaires", etc.)
+    col_affaires = next((c for c in df.columns if 'Aff' in str(c)), None)
+    
+    if col_affaires:
+        # Si la colonne est trouvée, on convertit et on remplace les 0 par Vide (NaN) pour éviter les crashs
+        affaires = pd.to_numeric(df[col_affaires], errors='coerce').replace(0, np.nan)
+        # On uniformise le nom de la colonne pour l'affichage visuel
+        df['Pré 1an $ Affaires'] = affaires
+    else:
+        # Si vous n'avez pas encore mis la colonne dans Excel, on génère du vide sans planter !
+        affaires = pd.Series(np.nan, index=df.index)
+        df['Pré 1an $ Affaires'] = np.nan
     
     if source == "Yahoo":
         cible = yahoo
     elif source == "Affaires":
-        # Règle du zéro : Si Affaires est vide/0, on prend la cible Yahoo en secours
+        # Règle du zéro : Si Affaires est vide ou 0, on prend la cible Yahoo en secours
         cible = affaires.fillna(yahoo)
     else: # Moyenne
         temp = pd.DataFrame({'Y': yahoo, 'A': affaires})
