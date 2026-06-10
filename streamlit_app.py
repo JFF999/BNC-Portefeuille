@@ -187,7 +187,13 @@ try:
             if col in df_live_prospects.columns:
                 df_live_prospects[col] = df_live_prospects[col] * 100
                 
+        # --- NOUVEAU : Filtrage des Prospects entre 30% et 100% de croissance ---
         if "Pré G %" in df_live_prospects.columns:
+            df_live_prospects = df_live_prospects[
+                (df_live_prospects["Pré G %"] >= 30) & 
+                (df_live_prospects["Pré G %"] <= 100)
+            ]
+            # Le tri garde toujours le plus haut potentiel en haut
             df_live_prospects = df_live_prospects.sort_values(by="Pré G %", ascending=False)
 
         hauteur_prospects = (len(df_live_prospects) * 35) + 43
@@ -203,7 +209,6 @@ try:
                 "Prix $": st.column_config.NumberColumn("Prix $", format="$ %.2f"),
                 "Var %": st.column_config.NumberColumn("Var %", format="%.1f %%"),
                 "Pré 1an $": st.column_config.NumberColumn("Pré 1an $", format="$ %.2f"),
-                # CORRECTION : Le nom de la clé a été corrigé ici ("Pré G %" au lieu de "Præ G %")
                 "Pré G %": st.column_config.NumberColumn("Pré G %", format="%.1f %%")
             }
         )
