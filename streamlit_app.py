@@ -136,7 +136,6 @@ try:
     with tab1:
         df_live = mise_a_jour_prix(df_portefeuille_actif, est_portefeuille=True)
 
-        # Force la conversion numérique avant multiplication
         for col in ["Pré G %", "Gain %", "Var %"]:
             if col in df_live.columns:
                 df_live[col] = pd.to_numeric(df_live[col], errors='coerce') * 100
@@ -199,22 +198,13 @@ try:
             }
         )
 
-    # --- TRAITEMENT ET FILTRAGE CENTRALISÉ DES PROSPECTS ---
+    # --- TRAITEMENT CENTRALISÉ DES PROSPECTS ---
     df_live_prospects = mise_a_jour_prix(df_base_prospects, est_portefeuille=False, symboles_portefeuille=symboles_possedes)
 
-    # --- CORRECTION ICI : Force la colonne en nombre propre ---
+    # Conversion en numérique
     for col in ["Pré G %", "Var %"]:
         if col in df_live_prospects.columns:
             df_live_prospects[col] = pd.to_numeric(df_live_prospects[col], errors='coerce') * 100
-            
-    if "Pré G %" in df_live_prospects.columns:
-        # Filtre global strictement numérique (Potentiel entre 30% et 100%)
-        # Si vous ne voyez toujours rien, changez le 30.0 pour 15.0 par exemple !
-        df_live_prospects = df_live_prospects[
-            (df_live_prospects["Pré G %"] >= 30.0) & 
-            (df_live_prospects["Pré G %"] <= 100.0)
-        ]
-        df_live_prospects = df_live_prospects.sort_values(by="Pré G %", ascending=False)
 
     def surligner_prospects(row):
         if row.get('Possede') == True:
@@ -223,7 +213,23 @@ try:
 
     # --- ONGLET 2 : PROSPECTS CAD ---
     with tab2:
+        # Contrôles Min / Max spécifiques pour le CAD
+        col_min, col_max = st.columns(2)
+        with col_min:
+            min_cad = st.number_input("Min %", value=30.0, step=5.0, key="min_cad")
+        with col_max:
+            max_cad = st.number_input("Max %", value=100.0, step=5.0, key="max_cad")
+
         df_prospects_cad = df_live_prospects[df_live_prospects['Devise'] == 'CAD']
+        
+        # Filtrage dynamique selon vos entrées
+        if "Pré G %" in df_prospects_cad.columns:
+            df_prospects_cad = df_prospects_cad[
+                (df_prospects_cad["Pré G %"] >= min_cad) & 
+                (df_prospects_cad["Pré G %"] <= max_cad)
+            ]
+            df_prospects_cad = df_prospects_cad.sort_values(by="Pré G %", ascending=False)
+
         hauteur_cad = (len(df_prospects_cad) * 35) + 43
 
         st.dataframe(
@@ -243,7 +249,23 @@ try:
 
     # --- ONGLET 3 : PROSPECTS US ---
     with tab3:
+        # Contrôles Min / Max spécifiques pour l'US
+        col_min_us, col_max_us = st.columns(2)
+        with col_min_us:
+            min_us = st.number_input("Min %", value=30.0, step=5.0, key="min_us")
+        with col_max_us:
+            max_us = st.number_input("Max %", value=100.0, step=5.0, key="max_us")
+
         df_prospects_usd = df_live_prospects[df_live_prospects['Devise'] == 'USD']
+        
+        # Filtrage dynamique selon vos entrées
+        if "Pré G %" in df_prospects_usd.columns:
+            df_prospects_usd = df_prospects_usd[
+                (df_prospects_usd["Pré G %"] >= min_us) & 
+                (df_prospects_usd["Pré G %"] <= max_us)
+            ]
+            df_prospects_usd = df_prospects_usd.sort_values(by="Pré G %", ascending=False)
+
         hauteur_usd = (len(df_prospects_usd) * 35) + 43
 
         st.dataframe(
