@@ -48,7 +48,7 @@ def heure_mise_a_jour():
 # --- NOUVEAU : Titre et Icône Paramètres sur la même ligne ---
 col_title, col_set = st.columns([5, 1])
 with col_title:
-    st.title("📈 BNC")
+    st.title("📈 BNC LIVE")
 with col_set:
     # Espace pour aligner l'icône verticalement avec le titre
     st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
