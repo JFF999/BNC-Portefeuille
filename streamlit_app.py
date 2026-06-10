@@ -45,11 +45,14 @@ st.markdown("""
 def heure_mise_a_jour():
     return datetime.now(ZoneInfo("America/Toronto")).strftime("%H:%M")
 
-st.title("📈 BNC LIVE")
-
-# --- NOUVEAU : Le bouton paramètres est maintenant discrètement placé sous le titre ---
-with st.popover("⚙️ Paramètres"):
-    source_gain = st.selectbox("Calcul du Gain", ["Yahoo", "Affaires", "Moyenne"])
+# --- NOUVEAU : Titre et Icône Paramètres sur la même ligne en haut ---
+col_title, col_params = st.columns([8, 2])
+with col_title:
+    st.title("📈 BNC LIVE")
+with col_params:
+    st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
+    with st.popover("⚙️"):
+        source_gain = st.selectbox("Calcul du Gain", ["Yahoo", "Affaires", "Moyenne"])
 
 heure_actuelle = heure_mise_a_jour()
 
@@ -73,7 +76,10 @@ def charger_donnees_base(nom_feuille):
     reponse = requests.get(URL_ONEDRIVE, headers=entetes, allow_redirects=True)
     reponse.raise_for_status() 
     df = pd.read_excel(io.BytesIO(reponse.content), sheet_name=nom_feuille, engine='openpyxl')
-    df.columns = df.columns.str.replace('\n', ' ')
+    
+    # Nettoyage robuste des noms de colonnes pour éviter les crashs dus aux sauts de ligne Excel
+    df.columns = [str(c).replace('\n', ' ').replace('\r', '') for c in df.columns]
+    df.columns = [' '.join(c.split()) for c in df.columns] 
     return df
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -116,6 +122,7 @@ def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
                 infos_generales = ticker.info
                 prevision_1an = infos_generales.get('targetMeanPrice')
                 
+                # On sauvegarde UNIQUEMENT si Yahoo a une prévision (sinon on garde celle d'Excel)
                 if prevision_1an is not None:
                     df.at[index, 'Pré 1an $'] = prevision_1an
                 
@@ -129,28 +136,37 @@ def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
                 pass
     return df
 
-# --- NOUVEAU : Logique intelligente pour contourner les zéros ---
+# --- NOUVEAU : Logique intelligente de calcul ---
 def calculer_potentiel_gain(df, source):
+    df = df.copy()
     if 'Prix $' not in df.columns:
         return df
         
     prix = pd.to_numeric(df['Prix $'], errors='coerce')
-    yahoo = pd.to_numeric(df.get('Pré 1an $', np.nan), errors='coerce')
     
-    # On transforme explicitement les '0' en valeurs vides (NaN) pour les ignorer
-    affaires = pd.to_numeric(df.get('Pré 1an $ Affaires', np.nan), errors='coerce').replace(0, np.nan)
+    if 'Pré 1an $' in df.columns:
+        yahoo = pd.to_numeric(df['Pré 1an $'], errors='coerce')
+    else:
+        yahoo = pd.Series(np.nan, index=df.index)
+        
+    if 'Pré 1an $ Affaires' in df.columns:
+        # On remplace les 0 par "Vide" (NaN) pour qu'ils soient ignorés
+        affaires = pd.to_numeric(df['Pré 1an $ Affaires'], errors='coerce').replace(0, np.nan)
+    else:
+        affaires = pd.Series(np.nan, index=df.index)
     
     if source == "Yahoo":
         cible = yahoo
     elif source == "Affaires":
-        # S'il y a un 0 dans Affaires, on utilise la prévision Yahoo pour ne pas fausser
+        # Si Affaires est vide/0, on se rabat automatiquement sur Yahoo
         cible = affaires.fillna(yahoo)
     else: # Moyenne
         temp = pd.DataFrame({'Y': yahoo, 'A': affaires})
-        # La fonction mean() ignorera automatiquement la colonne Affaires si elle est vide (NaN/0)
+        # Ignore automatiquement les colonnes vides (ex: si Affaires=0, moyenne = Yahoo)
         cible = temp.mean(axis=1, skipna=True)
         
-    mask = prix > 0
+    # On met à jour le potentiel UNIQUEMENT si on a un prix et une cible valide
+    mask = (prix > 0) & cible.notna()
     df.loc[mask, 'Pré G %'] = (cible[mask] - prix[mask]) / prix[mask]
     
     return df
@@ -173,7 +189,7 @@ try:
     with tab1:
         df_live = mise_a_jour_prix(df_portefeuille_actif, est_portefeuille=True)
         
-        # Recalcul à la volée
+        # Calcul intelligent à la volée selon les Paramètres
         df_live = calculer_potentiel_gain(df_live, source_gain)
 
         for col in ["Pré G %", "Gain %", "Var %"]:
@@ -242,7 +258,7 @@ try:
     # --- TRAITEMENT CENTRALISÉ DES PROSPECTS ---
     df_live_prospects = mise_a_jour_prix(df_base_prospects, est_portefeuille=False, symboles_portefeuille=symboles_possedes)
     
-    # Recalcul à la volée
+    # Calcul intelligent à la volée selon les Paramètres
     df_live_prospects = calculer_potentiel_gain(df_live_prospects, source_gain)
 
     for col in ["Pré G %", "Var %"]:
