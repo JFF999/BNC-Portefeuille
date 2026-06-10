@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 st.set_page_config(page_title="Portefeuille BNC", layout="wide")
 
-# --- ASTUCE CSS : Forcer les proportions exactes sur mobile (Version Évoluée) ---
+# --- ASTUCE CSS : Forcer les proportions exactes sur mobile ---
 st.markdown("""
     <style>
         /* 1. S'applique uniquement au bloc de tri/rafraîchissement tout en haut */
@@ -35,7 +35,7 @@ st.markdown("""
             gap: 15px !important;
         }
         div[data-testid="stHorizontalBlock"]:has(div[data-testid="stNumberInput"]) > div {
-            min-width: 110px !important; /* Largeur minimale de sécurité pour mobile */
+            min-width: 110px !important; 
         }
     </style>
 """, unsafe_allow_html=True)
@@ -55,7 +55,7 @@ with col_tri:
     
 with col_btn:
     if st.button(f"🔄 Rafraîchir ({heure_actuelle})", use_container_width=True):
-        st.cache_data.clear()
+        st.cache_data.clear() # Ceci vide la mémoire et force un vrai rafraîchissement
         st.rerun()
 
 URL_ONEDRIVE = "https://onedrive.live.com/:x:/g/personal/f3dc5429b587ae35/IQAm87v8ehTnQrt_lz2sW1Q5AUk-6g4cno5k6CgDX9V0qtU?download=1"
@@ -69,7 +69,10 @@ def charger_donnees_base(nom_feuille):
     reponse.raise_for_status() 
     return pd.read_excel(io.BytesIO(reponse.content), sheet_name=nom_feuille, engine='openpyxl')
 
+# --- NOUVEAU : On met cette fonction en cache pour ne pas spammer Yahoo Finance quand on touche aux filtres ! ---
+@st.cache_data(ttl=300, show_spinner=False)
 def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
+    df = df.copy() # Sécurité pour ne pas écraser les données d'origine
     df['Devise'] = 'USD'  
     df['Possede'] = False  
     for index, row in df.iterrows():
@@ -133,7 +136,8 @@ try:
     else:
         df_portefeuille_actif = df_base_portefeuille.copy()
 
-    symboles_possedes = set(df_portefeuille_actif['Symbole'].dropna().astype(str).str.strip())
+    # Transformation en tuple pour assurer la compatibilité avec le système de cache
+    symboles_possedes = tuple(set(df_portefeuille_actif['Symbole'].dropna().astype(str).str.strip()))
 
     tab1, tab2, tab3 = st.tabs(["💰 Portefeuille", "🎯 Pros CAD", "🎯 Pros US"])
 
@@ -219,8 +223,7 @@ try:
     with tab2:
         col_min, col_max, col_vide = st.columns([1, 1, 2])
         with col_min:
-            # CORRECTION : Valeur de départ à 0, et en nombre entier
-            min_cad = st.number_input("Min %", min_value=-100, max_value=500, value=0, step=5, key="min_cad")
+            min_cad = st.number_input("Min %", min_value=-100, max_value=500, value=25, step=5, key="min_cad")
         with col_max:
             max_cad = st.number_input("Max %", min_value=-100, max_value=500, value=100, step=5, key="max_cad")
 
@@ -255,8 +258,7 @@ try:
     with tab3:
         col_min_us, col_max_us, col_vide_us = st.columns([1, 1, 2])
         with col_min_us:
-            # CORRECTION : Valeur de départ à 0, et en nombre entier
-            min_us = st.number_input("Min %", min_value=-100, max_value=500, value=0, step=5, key="min_us")
+            min_us = st.number_input("Min %", min_value=-100, max_value=500, value=25, step=5, key="min_us")
         with col_max_us:
             max_us = st.number_input("Max %", min_value=-100, max_value=500, value=100, step=5, key="max_us")
 
