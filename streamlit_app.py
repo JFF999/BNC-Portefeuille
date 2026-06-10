@@ -8,22 +8,19 @@ from zoneinfo import ZoneInfo
 
 st.set_page_config(page_title="Portefeuille BNC", layout="wide")
 
-# --- ASTUCE CSS : Forcer les proportions exactes sur mobile (Version Ultra-Robuste) ---
+# --- ASTUCE CSS : Forcer les proportions exactes sur mobile ---
 st.markdown("""
     <style>
-        /* Désactive le retour à la ligne forcé par Streamlit sur téléphone */
         div[data-testid="stHorizontalBlock"] {
             flex-direction: row !important;
             flex-wrap: nowrap !important;
             gap: 10px !important;
         }
-        /* Première boîte (Sélecteur) : Forcée à 35% de l'écran */
         div[data-testid="stHorizontalBlock"] > div:nth-child(1) {
             width: 35% !important;
             min-width: 35% !important;
             flex: none !important;
         }
-        /* Deuxième boîte (Bouton) : Forcée à 65% de l'écran */
         div[data-testid="stHorizontalBlock"] > div:nth-child(2) {
             width: 65% !important;
             min-width: 65% !important;
@@ -61,13 +58,16 @@ def charger_donnees_base(nom_feuille):
     reponse.raise_for_status() 
     return pd.read_excel(io.BytesIO(reponse.content), sheet_name=nom_feuille, engine='openpyxl')
 
-def mise_a_jour_prix(df):
+def mise_a_jour_prix(df, est_portefeuille=True):
+    """Fonction unique pour mettre à jour Portefeuille ET Prospects"""
     for index, row in df.iterrows():
         symbole = row.get('Symbole')
         if pd.notna(symbole):
             try:
                 ticker = yf.Ticker(str(symbole).strip())
                 infos = ticker.history(period="5d")
+                
+                prix_actuel = None
                 
                 if not infos.empty and len(infos) >= 2:
                     prix_actuel = infos['Close'].iloc[-1]
@@ -76,72 +76,53 @@ def mise_a_jour_prix(df):
                     df.at[index, 'Prix $'] = prix_actuel
                     df.at[index, 'Var %'] = (prix_actuel - prix_veille) / prix_veille
                     
-                    achat = row['Achat $']
-                    qte = row['Qtée']
-                    df.at[index, 'Gain %'] = (prix_actuel - achat) / achat
-                    df.at[index, 'Gain $'] = (prix_actuel - achat) * qte
+                    # Le calcul des gains passés ne s'applique qu'au Portefeuille
+                    if est_portefeuille and 'Achat $' in row and pd.notna(row['Achat $']):
+                        achat = row['Achat $']
+                        qte = row['Qtée']
+                        df.at[index, 'Gain %'] = (prix_actuel - achat) / achat
+                        df.at[index, 'Gain $'] = (prix_actuel - achat) * qte
                 
                 infos_generales = ticker.info
                 prevision_1an = infos_generales.get('targetMeanPrice')
+                
                 if prevision_1an is not None:
                     df.at[index, 'Pré 1an $'] = prevision_1an
                     
-            except Exception:
-                pass
-    return df
-
-def mise_a_jour_prospects(df):
-    for index, row in df.iterrows():
-        symbole = row.get('Symbole')
-        if pd.notna(symbole):
-            try:
-                ticker = yf.Ticker(str(symbole).strip())
-                infos = ticker.history(period="5d")
-                
-                if not infos.empty and len(infos) >= 2:
-                    prix_actuel = infos['Close'].iloc[-1]
-                    prix_veille = infos['Close'].iloc[-2]
-                    
-                    df.at[index, 'Prix $'] = prix_actuel
-                    df.at[index, 'Var %'] = (prix_actuel - prix_veille) / prix_veille
-                
-                infos_generales = ticker.info
-                prevision_1an = infos_generales.get('targetMeanPrice')
-                if prevision_1an is not None:
-                    df.at[index, 'Pré 1an $'] = prevision_1an
-                    
+                    # --- NOUVEAU : Calcul dynamique de la Pré G % ---
+                    if prix_actuel is not None and prix_actuel > 0:
+                        df.at[index, 'Pré G %'] = (prevision_1an - prix_actuel) / prix_actuel
+                        
             except Exception:
                 pass
     return df
 
 try:
     with st.spinner("Connexion à OneDrive et Yahoo Finance..."):
-        # Chargement en tâche de fond des deux feuilles Excel
         df_base_portefeuille = charger_donnees_base('Portefeuille BNC')
-        df_base_prospects = charger_donnees_base('Prospect')
+        df_base_prospects = charger_donnees_base('Prospects')
 
-    # Création des deux onglets de navigation
     tab1, tab2 = st.tabs(["💰 Portefeuille", "🎯 Prospects"])
 
-    # --- CONTENU DE L'ONGLET 1 : PORTEFEUILLE ---
+    # --- ONGLET 1 : PORTEFEUILLE ---
     with tab1:
         if 'No.' in df_base_portefeuille.columns:
             df_base_portefeuille = df_base_portefeuille[df_base_portefeuille['No.'] != 0].reset_index(drop=True)
 
-        df_live_portefeuille = mise_a_jour_prix(df_base_portefeuille)
+        df_live = mise_a_jour_prix(df_base_portefeuille, est_portefeuille=True)
 
         colonnes_pourcentage = ["Pré G %", "Gain %", "Var %"]
         for col in colonnes_pourcentage:
-            if col in df_live_portefeuille.columns:
-                df_live_portefeuille[col] = df_live_portefeuille[col] * 100
+            if col in df_live.columns:
+                df_live[col] = df_live[col] * 100
 
         if colonne_tri == "Pré G %":
-            df_live_portefeuille = df_live_portefeuille.sort_values(by="Pré G %", ascending=True) 
+            df_live = df_live.sort_values(by="Pré G %", ascending=True) 
         elif colonne_tri == "Gain %":
-            df_live_portefeuille = df_live_portefeuille.sort_values(by="Gain %", ascending=False) 
+            df_live = df_live.sort_values(by="Gain %", ascending=False) 
 
-        valeur_totale = (df_live_portefeuille['Prix $'] * df_live_portefeuille['Qtée']).sum()
-        gain_total = df_live_portefeuille['Gain $'].sum()
+        valeur_totale = (df_live['Prix $'] * df_live['Qtée']).sum()
+        gain_total = df_live['Gain $'].sum()
 
         gain_formate = f"{gain_total:,.2f} $".replace(',', ' ')
         valeur_formate = f"{valeur_totale:,.2f} $".replace(',', ' ')
@@ -170,14 +151,14 @@ try:
             else:
                 return 'background-color: rgba(0, 255, 0, 0.3)'
 
-        df_stylise = df_live_portefeuille.style.map(couleur_alerte_vente, subset=['Pré G %'])
-        hauteur_portefeuille = (len(df_live_portefeuille) * 35) + 43
+        df_stylise = df_live.style.map(couleur_alerte_vente, subset=['Pré G %'])
+        hauteur_dynamique = (len(df_live) * 35) + 43
 
         st.dataframe(
             df_stylise,
             use_container_width=True,
             hide_index=True,
-            height=hauteur_portefeuille,
+            height=hauteur_dynamique,
             column_config={
                 "Pré G %": st.column_config.NumberColumn(format="%.1f %%"),
                 "Prix $": st.column_config.NumberColumn(format="$ %.2f"),
@@ -190,12 +171,18 @@ try:
             }
         )
 
-    # --- CONTENU DE L'ONGLET 2 : PROSPECTS ---
+    # --- ONGLET 2 : PROSPECTS ---
     with tab2:
-        df_live_prospects = mise_a_jour_prospects(df_base_prospects)
+        df_live_prospects = mise_a_jour_prix(df_base_prospects, est_portefeuille=False)
 
-        if 'Var %' in df_live_prospects.columns:
-            df_live_prospects['Var %'] = df_live_prospects['Var %'] * 100
+        colonnes_pourcentage_pro = ["Pré G %", "Var %"]
+        for col in colonnes_pourcentage_pro:
+            if col in df_live_prospects.columns:
+                df_live_prospects[col] = df_live_prospects[col] * 100
+                
+        # On peut aussi trier l'onglet prospect par le meilleur potentiel de gain (Pré G %)
+        if "Pré G %" in df_live_prospects.columns:
+            df_live_prospects = df_live_prospects.sort_values(by="Pré G %", ascending=False)
 
         hauteur_prospects = (len(df_live_prospects) * 35) + 43
 
@@ -205,6 +192,7 @@ try:
             hide_index=True,
             height=hauteur_prospects,
             column_config={
+                "Pré G %": st.column_config.NumberColumn(format="%.1f %%"),
                 "Prix $": st.column_config.NumberColumn(format="$ %.2f"),
                 "Var %": st.column_config.NumberColumn(format="%.1f %%"),
                 "Pré 1an $": st.column_config.NumberColumn(format="$ %.2f"),
