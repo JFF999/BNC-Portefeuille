@@ -70,7 +70,6 @@ def charger_donnees_base(nom_feuille):
     return pd.read_excel(io.BytesIO(reponse.content), sheet_name=nom_feuille, engine='openpyxl')
 
 def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
-    """Fonction unique pour mettre à jour Portefeuille ET Prospects"""
     df['Devise'] = 'USD'  
     df['Possede'] = False  
     for index, row in df.iterrows():
@@ -218,18 +217,18 @@ try:
 
     # --- ONGLET 2 : PROSPECTS CAD ---
     with tab2:
-        # Configuration asymétrique des colonnes [1, 1, 2] pour un rendu parfait PC / Téléphone
         col_min, col_max, col_vide = st.columns([1, 1, 2])
         with col_min:
-            # Remplacement des valeurs par des entiers purs (sans .0)
-            min_cad = st.number_input("Min %", value=30, step=5, key="min_cad")
+            # CORRECTION : Valeur de départ à 0, et en nombre entier
+            min_cad = st.number_input("Min %", min_value=-100, max_value=500, value=0, step=5, key="min_cad")
         with col_max:
-            max_cad = st.number_input("Max %", value=100, step=5, key="max_cad")
+            max_cad = st.number_input("Max %", min_value=-100, max_value=500, value=100, step=5, key="max_cad")
 
         df_prospects_cad = df_live_prospects[df_live_prospects['Devise'] == 'CAD']
         
         if "Pré G %" in df_prospects_cad.columns:
             df_prospects_cad = df_prospects_cad[
+                (df_prospects_cad["Pré G %"].notna()) & 
                 (df_prospects_cad["Pré G %"] >= min_cad) & 
                 (df_prospects_cad["Pré G %"] <= max_cad)
             ]
@@ -254,18 +253,18 @@ try:
 
     # --- ONGLET 3 : PROSPECTS US ---
     with tab3:
-        # Configuration asymétrique des colonnes [1, 1, 2] pour un rendu parfait PC / Téléphone
         col_min_us, col_max_us, col_vide_us = st.columns([1, 1, 2])
         with col_min_us:
-            # Remplacement des valeurs par des entiers purs (sans .0)
-            min_us = st.number_input("Min %", value=30, step=5, key="min_us")
+            # CORRECTION : Valeur de départ à 0, et en nombre entier
+            min_us = st.number_input("Min %", min_value=-100, max_value=500, value=0, step=5, key="min_us")
         with col_max_us:
-            max_us = st.number_input("Max %", value=100, step=5, key="max_us")
+            max_us = st.number_input("Max %", min_value=-100, max_value=500, value=100, step=5, key="max_us")
 
         df_prospects_usd = df_live_prospects[df_live_prospects['Devise'] == 'USD']
         
         if "Pré G %" in df_prospects_usd.columns:
             df_prospects_usd = df_prospects_usd[
+                (df_prospects_usd["Pré G %"].notna()) & 
                 (df_prospects_usd["Pré G %"] >= min_us) & 
                 (df_prospects_usd["Pré G %"] <= max_us)
             ]
