@@ -58,9 +58,10 @@ def charger_donnees_base(nom_feuille):
     reponse.raise_for_status() 
     return pd.read_excel(io.BytesIO(reponse.content), sheet_name=nom_feuille, engine='openpyxl')
 
-def mise_a_jour_prix(df, est_portefeuille=True):
+def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
     """Fonction unique pour mettre à jour Portefeuille ET Prospects"""
     df['Devise'] = 'USD'  # Valeur par défaut
+    df['Possede'] = False  # Par défaut, non possédé
     for index, row in df.iterrows():
         symbole = row.get('Symbole')
         if pd.notna(symbole):
@@ -71,6 +72,10 @@ def mise_a_jour_prix(df, est_portefeuille=True):
                 df.at[index, 'Devise'] = 'CAD'
             else:
                 df.at[index, 'Devise'] = 'USD'
+                
+            # --- NOUVEAU : Marquage si l'action est déjà possédée en portefeuille ---
+            if symboles_portefeuille and symbole_clean in symboles_portefeuille:
+                df.at[index, 'Possede'] = True
                 
             try:
                 ticker = yf.Ticker(symbole_clean)
@@ -119,28 +124,33 @@ try:
         df_base_portefeuille = charger_donnees_base('Portefeuille BNC')
         df_base_prospects = charger_donnees_base('Prospects')
 
+    # --- NOUVEAU : Extraction des symboles possédés actifs avant transformation ---
+    if 'No.' in df_base_portefeuille.columns:
+        df_portefeuille_actif = df_base_portefeuille[df_base_portefeuille['No.'] != 0].reset_index(drop=True)
+    else:
+        df_portefeuille_actif = df_base_portefeuille.copy()
+
+    symboles_possedes = set(df_portefeuille_actif['Symbole'].dropna().astype(str).str.strip())
+
     # --- DÉFINITION DES 3 ONGLETS ---
     tab1, tab2, tab3 = st.tabs(["💰 Portefeuille", "🎯 Prospects CAD", "💵 Prospects USD"])
 
     # --- ONGLET 1 : PORTEFEUILLE ---
     with tab1:
-        if 'No.' in df_base_portefeuille.columns:
-            df_base_portefeuille = df_base_portefeuille[df_base_portefeuille['No.'] != 0].reset_index(drop=True)
-
-        df_live_portefeuille = mise_a_jour_prix(df_base_portefeuille, est_portefeuille=True)
+        df_live = mise_a_jour_prix(df_portefeuille_actif, est_portefeuille=True)
 
         colonnes_pourcentage = ["Pré G %", "Gain %", "Var %"]
         for col in colonnes_pourcentage:
-            if col in df_live_portefeuille.columns:
-                df_live_portefeuille[col] = df_live_portefeuille[col] * 100
+            if col in df_live.columns:
+                df_live[col] = df_live[col] * 100
 
         if colonne_tri == "Pré G %":
-            df_live_portefeuille = df_live_portefeuille.sort_values(by="Pré G %", ascending=True) 
+            df_live = df_live.sort_values(by="Pré G %", ascending=True) 
         elif colonne_tri == "Gain %":
-            df_live_portefeuille = df_live_portefeuille.sort_values(by="Gain %", ascending=False) 
+            df_live = df_live.sort_values(by="Gain %", ascending=False) 
 
-        valeur_totale = (df_live_portefeuille['Prix $'] * df_live_portefeuille['Qtée']).sum()
-        gain_total = df_live_portefeuille['Gain $'].sum()
+        valeur_totale = (df_live['Prix $'] * df_live['Qtée']).sum()
+        gain_total = df_live['Gain $'].sum()
 
         gain_formate = f"{gain_total:,.2f} $".replace(',', ' ')
         valeur_formate = f"{valeur_totale:,.2f} $".replace(',', ' ')
@@ -169,8 +179,8 @@ try:
             else:
                 return 'background-color: rgba(0, 255, 0, 0.3)'
 
-        df_stylise = df_live_portefeuille.style.map(couleur_alerte_vente, subset=['Pré G %'])
-        hauteur_dynamique = (len(df_live_portefeuille) * 35) + 43
+        df_stylise = df_live.style.map(couleur_alerte_vente, subset=['Pré G %'])
+        hauteur_dynamique = (len(df_live) * 35) + 43
 
         st.dataframe(
             df_stylise,
@@ -193,7 +203,7 @@ try:
         )
 
     # --- TRAITEMENT ET FILTRAGE CENTRALISÉ DES PROSPECTS ---
-    df_live_prospects = mise_a_jour_prix(df_base_prospects, est_portefeuille=False)
+    df_live_prospects = mise_a_jour_prix(df_base_prospects, est_portefeuille=False, symboles_portefeuille=symboles_possedes)
 
     colonnes_pourcentage_pro = ["Pré G %", "Var %"]
     for col in colonnes_pourcentage_pro:
@@ -208,13 +218,19 @@ try:
         ]
         df_live_prospects = df_live_prospects.sort_values(by="Pré G %", ascending=False)
 
+    # --- NOUVEAU : Fonction CSS pour surligner les lignes possédées ---
+    def surligner_prospects(row):
+        if row.get('Possede') == True:
+            return ['background-color: rgba(0, 123, 255, 0.12)'] * len(row)
+        return [''] * len(row)
+
     # --- ONGLET 2 : PROSPECTS CAD ---
     with tab2:
         df_prospects_cad = df_live_prospects[df_live_prospects['Devise'] == 'CAD']
         hauteur_cad = (len(df_prospects_cad) * 35) + 43
 
         st.dataframe(
-            df_prospects_cad,
+            df_prospects_cad.style.apply(surligner_prospects, axis=1), # <-- On applique le surlignage
             use_container_width=True,
             hide_index=True,
             height=hauteur_cad,
@@ -234,7 +250,7 @@ try:
         hauteur_usd = (len(df_prospects_usd) * 35) + 43
 
         st.dataframe(
-            df_prospects_usd,
+            df_prospects_usd.style.apply(surligner_prospects, axis=1), # <-- On applique le surlignage
             use_container_width=True,
             hide_index=True,
             height=hauteur_usd,
