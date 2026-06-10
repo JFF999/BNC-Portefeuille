@@ -45,15 +45,11 @@ st.markdown("""
 def heure_mise_a_jour():
     return datetime.now(ZoneInfo("America/Toronto")).strftime("%H:%M")
 
-# --- NOUVEAU : Titre et Icône Paramètres sur la même ligne ---
-col_title, col_set = st.columns([5, 1])
-with col_title:
-    st.title("📈 BNC LIVE")
-with col_set:
-    # Espace pour aligner l'icône verticalement avec le titre
-    st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
-    with st.popover("⚙️"):
-        source_gain = st.selectbox("Calcul du Gain", ["Yahoo", "Affaires", "Moyenne"])
+st.title("📈 BNC LIVE")
+
+# --- NOUVEAU : Le bouton paramètres est maintenant discrètement placé sous le titre ---
+with st.popover("⚙️ Paramètres"):
+    source_gain = st.selectbox("Calcul du Gain", ["Yahoo", "Affaires", "Moyenne"])
 
 heure_actuelle = heure_mise_a_jour()
 
@@ -133,21 +129,25 @@ def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
                 pass
     return df
 
-# --- NOUVEAU : Fonction ultra-rapide (hors cache) pour recalculer le potentiel à la volée ---
+# --- NOUVEAU : Logique intelligente pour contourner les zéros ---
 def calculer_potentiel_gain(df, source):
     if 'Prix $' not in df.columns:
         return df
         
     prix = pd.to_numeric(df['Prix $'], errors='coerce')
-    yahoo = pd.to_numeric(df.get('Pré 1an $', pd.NA), errors='coerce')
-    affaires = pd.to_numeric(df.get('Pré 1an $ Affaires', pd.NA), errors='coerce')
+    yahoo = pd.to_numeric(df.get('Pré 1an $', np.nan), errors='coerce')
+    
+    # On transforme explicitement les '0' en valeurs vides (NaN) pour les ignorer
+    affaires = pd.to_numeric(df.get('Pré 1an $ Affaires', np.nan), errors='coerce').replace(0, np.nan)
     
     if source == "Yahoo":
         cible = yahoo
     elif source == "Affaires":
-        cible = affaires
+        # S'il y a un 0 dans Affaires, on utilise la prévision Yahoo pour ne pas fausser
+        cible = affaires.fillna(yahoo)
     else: # Moyenne
         temp = pd.DataFrame({'Y': yahoo, 'A': affaires})
+        # La fonction mean() ignorera automatiquement la colonne Affaires si elle est vide (NaN/0)
         cible = temp.mean(axis=1, skipna=True)
         
     mask = prix > 0
@@ -173,7 +173,7 @@ try:
     with tab1:
         df_live = mise_a_jour_prix(df_portefeuille_actif, est_portefeuille=True)
         
-        # On calcule le Pré G % en temps réel selon le sélecteur Paramètres
+        # Recalcul à la volée
         df_live = calculer_potentiel_gain(df_live, source_gain)
 
         for col in ["Pré G %", "Gain %", "Var %"]:
@@ -242,7 +242,7 @@ try:
     # --- TRAITEMENT CENTRALISÉ DES PROSPECTS ---
     df_live_prospects = mise_a_jour_prix(df_base_prospects, est_portefeuille=False, symboles_portefeuille=symboles_possedes)
     
-    # On calcule le Pré G % en temps réel selon le sélecteur Paramètres
+    # Recalcul à la volée
     df_live_prospects = calculer_potentiel_gain(df_live_prospects, source_gain)
 
     for col in ["Pré G %", "Var %"]:
