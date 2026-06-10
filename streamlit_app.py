@@ -94,7 +94,7 @@ def mise_a_jour_prix(df, est_portefeuille=True):
                     if prix_actuel is not None and prix_actuel > 0:
                         df.at[index, 'Pré G %'] = (prevision_1an - prix_actuel) / prix_actuel
                 
-                # --- NOUVEAU : On injecte l'URL directement dans la colonne Symbole ---
+                # On injecte l'URL directement dans la colonne Symbole
                 df.at[index, 'Symbole'] = f"https://ca.finance.yahoo.com/quote/{symbole_clean}"
                         
             except Exception:
@@ -163,10 +163,11 @@ try:
             use_container_width=True,
             hide_index=True,
             height=hauteur_dynamique,
-            # Force l'ordre d'affichage et élimine les colonnes de liens ou d'index superflues
-            column_order=["Symbole", "Prix $", "Var %", "Pré 1an $", "Pré G %", "Achat $", "Qtée", "Gain %", "Gain $", "Date Achat"],
+            # MODIFICATION : "No." est rajouté en toute première position
+            column_order=["No.", "Symbole", "Prix $", "Var %", "Pré 1an $", "Pré G %", "Achat $", "Qtée", "Gain %", "Gain $", "Date Achat"],
             column_config={
-                # Le Symbole extrait dynamiquement le texte de l'URL pour un affichage propre cliquable
+                # MODIFICATION : Configuration de l'affichage de la colonne No. (format nombre entier sans virgule)
+                "No.": st.column_config.NumberColumn("No.", format="%d"),
                 "Symbole": st.column_config.LinkColumn("Symbole", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)"),
                 "Pré G %": st.column_config.NumberColumn(format="%.1f %%"),
                 "Prix $": st.column_config.NumberColumn(format="$ %.2f"),
@@ -198,15 +199,14 @@ try:
             use_container_width=True,
             hide_index=True,
             height=hauteur_prospects,
-            # Nettoie l'affichage en ne gardant que l'essentiel sur mobile
+            # Conserve l'onglet des prospects épuré (sans colonne "No.")
             column_order=["Symbole", "Prix $", "Var %", "Pré 1an $", "Pré G %"],
             column_config={
-                # Même configuration de lien cliquable directement sur le Symbole
                 "Symbole": st.column_config.LinkColumn("Symbole", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)"),
                 "Prix $": st.column_config.NumberColumn("Prix $", format="$ %.2f"),
                 "Var %": st.column_config.NumberColumn("Var %", format="%.1f %%"),
                 "Pré 1an $": st.column_config.NumberColumn("Pré 1an $", format="$ %.2f"),
-                "Pré G %": st.column_config.NumberColumn("Pré G %", format="%.1f %%")
+                "Præ G %": st.column_config.NumberColumn("Pré G %", format="%.1f %%")
             }
         )
         
