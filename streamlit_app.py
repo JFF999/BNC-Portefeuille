@@ -163,10 +163,8 @@ try:
             use_container_width=True,
             hide_index=True,
             height=hauteur_dynamique,
-            # MODIFICATION : "No." est rajouté en toute première position
             column_order=["No.", "Symbole", "Prix $", "Var %", "Pré 1an $", "Pré G %", "Achat $", "Qtée", "Gain %", "Gain $", "Date Achat"],
             column_config={
-                # MODIFICATION : Configuration de l'affichage de la colonne No. (format nombre entier sans virgule)
                 "No.": st.column_config.NumberColumn("No.", format="%d"),
                 "Symbole": st.column_config.LinkColumn("Symbole", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)"),
                 "Pré G %": st.column_config.NumberColumn(format="%.1f %%"),
@@ -199,14 +197,14 @@ try:
             use_container_width=True,
             hide_index=True,
             height=hauteur_prospects,
-            # Conserve l'onglet des prospects épuré (sans colonne "No.")
             column_order=["Symbole", "Prix $", "Var %", "Pré 1an $", "Pré G %"],
             column_config={
                 "Symbole": st.column_config.LinkColumn("Symbole", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)"),
                 "Prix $": st.column_config.NumberColumn("Prix $", format="$ %.2f"),
                 "Var %": st.column_config.NumberColumn("Var %", format="%.1f %%"),
                 "Pré 1an $": st.column_config.NumberColumn("Pré 1an $", format="$ %.2f"),
-                "Præ G %": st.column_config.NumberColumn("Pré G %", format="%.1f %%")
+                # CORRECTION : Le nom de la clé a été corrigé ici ("Pré G %" au lieu de "Præ G %")
+                "Pré G %": st.column_config.NumberColumn("Pré G %", format="%.1f %%")
             }
         )
         
