@@ -89,9 +89,12 @@ def mise_a_jour_prix(df, est_portefeuille=True):
                 if prevision_1an is not None:
                     df.at[index, 'Pré 1an $'] = prevision_1an
                     
-                    # --- NOUVEAU : Calcul dynamique de la Pré G % ---
+                    # Calcul dynamique de la Pré G %
                     if prix_actuel is not None and prix_actuel > 0:
                         df.at[index, 'Pré G %'] = (prevision_1an - prix_actuel) / prix_actuel
+                
+                # --- NOUVEAU : Génération dynamique et automatique du lien Yahoo ---
+                df.at[index, 'Lien Yahoo'] = f"https://ca.finance.yahoo.com/quote/{str(symbole).strip()}"
                         
             except Exception:
                 pass
@@ -173,30 +176,41 @@ try:
 
     # --- ONGLET 2 : PROSPECTS ---
     with tab2:
+        # 1. On supprime la colonne 'Vide' si elle existe pour faire de la place
+        if 'Vide' in df_base_prospects.columns:
+            df_base_prospects = df_base_prospects.drop(columns=['Vide'])
+
         df_live_prospects = mise_a_jour_prix(df_base_prospects, est_portefeuille=False)
 
+        # 2. Conversion des pourcentages
         colonnes_pourcentage_pro = ["Pré G %", "Var %"]
         for col in colonnes_pourcentage_pro:
             if col in df_live_prospects.columns:
                 df_live_prospects[col] = df_live_prospects[col] * 100
                 
-        # On peut aussi trier l'onglet prospect par le meilleur potentiel de gain (Pré G %)
+        # 3. Tri automatique par le plus gros potentiel (Pré G %)
         if "Pré G %" in df_live_prospects.columns:
             df_live_prospects = df_live_prospects.sort_values(by="Pré G %", ascending=False)
 
-        hauteur_prospects = (len(df_live_prospects) * 35) + 43
+        # 4. Réorganisation propre de l'ordre des colonnes pour l'affichage
+        ordre_colonnes_pro = ["Symbole", "Prix $", "Var %", "Pré 1an $", "Pré G %", "Lien Yahoo"]
+        colonnes_valides = [c for c in ordre_colonnes_pro if c in df_live_prospects.columns]
+        df_affichage_prospects = df_live_prospects[colonnes_valides]
+
+        hauteur_prospects = (len(df_affichage_prospects) * 35) + 43
 
         st.dataframe(
-            df_live_prospects,
+            df_affichage_prospects,
             use_container_width=True,
             hide_index=True,
             height=hauteur_prospects,
             column_config={
-                "Pré G %": st.column_config.NumberColumn(format="%.1f %%"),
-                "Prix $": st.column_config.NumberColumn(format="$ %.2f"),
-                "Var %": st.column_config.NumberColumn(format="%.1f %%"),
-                "Pré 1an $": st.column_config.NumberColumn(format="$ %.2f"),
-                "Cible $": st.column_config.NumberColumn(format="$ %.2f")
+                "Symbole": st.column_config.TextColumn("Symbole"),
+                "Prix $": st.column_config.NumberColumn("Prix $", format="$ %.2f"),
+                "Var %": st.column_config.NumberColumn("Var %", format="%.1f %%"),
+                "Pré 1an $": st.column_config.NumberColumn("Pré 1an $", format="$ %.2f"),
+                "Pré G %": st.column_config.NumberColumn("Pré G %", format="%.1f %%"),
+                "Lien Yahoo": st.column_config.LinkColumn("Lien Yahoo", display_text="🔗 Yahoo") # <-- NOUVEAU : Lien dynamique cliquable
             }
         )
         
