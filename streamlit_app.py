@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
 import yfinance as yf
-import requests
-import io
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -11,7 +9,6 @@ st.set_page_config(page_title="Portefeuille BNC", layout="wide")
 # --- ASTUCE CSS : Forcer les proportions exactes sur mobile ---
 st.markdown("""
     <style>
-        /* 1. S'applique uniquement au bloc de tri/rafraîchissement tout en haut */
         div[data-testid="stHorizontalBlock"]:has(div[data-testid="stSelectbox"]) {
             flex-direction: row !important;
             flex-wrap: nowrap !important;
@@ -27,8 +24,6 @@ st.markdown("""
             min-width: 65% !important;
             flex: none !important;
         }
-
-        /* 2. S'applique spécifiquement aux filtres numériques Min/Max des prospects */
         div[data-testid="stHorizontalBlock"]:has(div[data-testid="stNumberInput"]) {
             flex-direction: row !important;
             flex-wrap: nowrap !important;
@@ -55,24 +50,17 @@ with col_tri:
     
 with col_btn:
     if st.button(f"🔄 Rafraîchir ({heure_actuelle})", use_container_width=True):
-        st.cache_data.clear() # Ceci vide la mémoire et force un vrai rafraîchissement
+        st.cache_data.clear() 
         st.rerun()
-
-URL_ONEDRIVE = "https://onedrive.live.com/:x:/g/personal/f3dc5429b587ae35/IQAm87v8ehTnQrt_lz2sW1Q5AUk-6g4cno5k6CgDX9V0qtU?download=1"
 
 @st.cache_data(ttl=300)
 def charger_donnees_base(nom_feuille):
-    entetes = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    }
-    reponse = requests.get(URL_ONEDRIVE, headers=entetes, allow_redirects=True)
-    reponse.raise_for_status() 
-    return pd.read_excel(io.BytesIO(reponse.content), sheet_name=nom_feuille, engine='openpyxl')
+    # Lecture directe de votre fichier local
+    return pd.read_excel("Action_2026-c.xlsx", sheet_name=nom_feuille, engine='openpyxl')
 
-# --- NOUVEAU : On met cette fonction en cache pour ne pas spammer Yahoo Finance quand on touche aux filtres ! ---
 @st.cache_data(ttl=300, show_spinner=False)
 def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
-    df = df.copy() # Sécurité pour ne pas écraser les données d'origine
+    df = df.copy() 
     df['Devise'] = 'USD'  
     df['Possede'] = False  
     for index, row in df.iterrows():
@@ -99,6 +87,7 @@ def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
                     prix_veille = infos['Close'].iloc[-2]
                     
                     df.at[index, 'Prix $'] = prix_actuel
+                    
                     df.at[index, 'Var %'] = (prix_actuel - prix_veille) / prix_veille
                     
                     if est_portefeuille and 'Achat $' in row and pd.notna(row['Achat $']):
@@ -127,16 +116,15 @@ def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
     return df
 
 try:
-    with st.spinner("Connexion à OneDrive et Yahoo Finance..."):
+    with st.spinner("Connexion à Yahoo Finance..."):
         df_base_portefeuille = charger_donnees_base('Portefeuille BNC')
-        df_base_prospects = charger_donnees_base('Prospects')
+        df_base_prospects = charger_donnees_base('Prospect')
 
     if 'No.' in df_base_portefeuille.columns:
         df_portefeuille_actif = df_base_portefeuille[df_base_portefeuille['No.'] != 0].reset_index(drop=True)
     else:
         df_portefeuille_actif = df_base_portefeuille.copy()
 
-    # Transformation en tuple pour assurer la compatibilité avec le système de cache
     symboles_possedes = tuple(set(df_portefeuille_actif['Symbole'].dropna().astype(str).str.strip()))
 
     tab1, tab2, tab3 = st.tabs(["💰 Portefeuille", "🎯 Pros CAD", "🎯 Pros US"])
@@ -214,9 +202,11 @@ try:
         if col in df_live_prospects.columns:
             df_live_prospects[col] = pd.to_numeric(df_live_prospects[col], errors='coerce') * 100
 
+    # --- MODIFICATION ICI : Un beau jaune plus voyant ---
     def surligner_prospects(row):
         if row.get('Possede') == True:
-            return ['background-color: rgba(0, 123, 255, 0.12)'] * len(row)
+            # Code couleur mis à jour vers un jaune or visible (rgba(255, 215, 0, 0.4))
+            return ['background-color: rgba(255, 215, 0, 0.4)'] * len(row)
         return [''] * len(row)
 
     # --- ONGLET 2 : PROSPECTS CAD ---
@@ -237,7 +227,7 @@ try:
             ]
             df_prospects_cad = df_prospects_cad.sort_values(by="Pré G %", ascending=False)
 
-        hauteur_cad = (len(df_prospects_cad) * 35) + 43
+        hauteur_cad = (len(df_prospects_cad) * 35) + 43 if len(df_prospects_cad) > 0 else 100
 
         st.dataframe(
             df_prospects_cad.style.apply(surligner_prospects, axis=1),
@@ -272,7 +262,7 @@ try:
             ]
             df_prospects_usd = df_prospects_usd.sort_values(by="Pré G %", ascending=False)
 
-        hauteur_usd = (len(df_prospects_usd) * 35) + 43
+        hauteur_usd = (len(df_prospects_usd) * 35) + 43 if len(df_prospects_usd) > 0 else 100
 
         st.dataframe(
             df_prospects_usd.style.apply(surligner_prospects, axis=1),
