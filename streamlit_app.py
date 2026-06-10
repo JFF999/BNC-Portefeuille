@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import yfinance as yf
 import requests
 import io
@@ -44,7 +45,15 @@ st.markdown("""
 def heure_mise_a_jour():
     return datetime.now(ZoneInfo("America/Toronto")).strftime("%H:%M")
 
-st.title("📈 BNC LIVE")
+# --- NOUVEAU : Titre et Icône Paramètres sur la même ligne ---
+col_title, col_set = st.columns([5, 1])
+with col_title:
+    st.title("📈 BNC LIVE")
+with col_set:
+    # Espace pour aligner l'icône verticalement avec le titre
+    st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
+    with st.popover("⚙️"):
+        source_gain = st.selectbox("Calcul du Gain", ["Yahoo", "Affaires", "Moyenne"])
 
 heure_actuelle = heure_mise_a_jour()
 
@@ -55,7 +64,7 @@ with col_tri:
     
 with col_btn:
     if st.button(f"🔄 Rafraîchir ({heure_actuelle})", use_container_width=True):
-        st.cache_data.clear() # Ceci vide la mémoire et force un vrai rafraîchissement
+        st.cache_data.clear() 
         st.rerun()
 
 URL_ONEDRIVE = "https://onedrive.live.com/:x:/g/personal/f3dc5429b587ae35/IQAm87v8ehTnQrt_lz2sW1Q5AUk-6g4cno5k6CgDX9V0qtU?download=1"
@@ -68,14 +77,12 @@ def charger_donnees_base(nom_feuille):
     reponse = requests.get(URL_ONEDRIVE, headers=entetes, allow_redirects=True)
     reponse.raise_for_status() 
     df = pd.read_excel(io.BytesIO(reponse.content), sheet_name=nom_feuille, engine='openpyxl')
-    # NOUVEAU : Nettoie les sauts de ligne (Alt+Enter) dans les noms de colonnes Excel
     df.columns = df.columns.str.replace('\n', ' ')
     return df
 
-# --- On met cette fonction en cache pour ne pas spammer Yahoo Finance quand on touche aux filtres ! ---
 @st.cache_data(ttl=300, show_spinner=False)
 def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
-    df = df.copy() # Sécurité pour ne pas écraser les données d'origine
+    df = df.copy() 
     df['Devise'] = 'USD'  
     df['Possede'] = False  
     for index, row in df.iterrows():
@@ -115,9 +122,6 @@ def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
                 
                 if prevision_1an is not None:
                     df.at[index, 'Pré 1an $'] = prevision_1an
-                    
-                    if prix_actuel is not None and prix_actuel > 0:
-                        df.at[index, 'Pré G %'] = (prevision_1an - prix_actuel) / prix_actuel
                 
                 devise_officielle = infos_generales.get('currency')
                 if devise_officielle:
@@ -127,6 +131,28 @@ def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
                         
             except Exception:
                 pass
+    return df
+
+# --- NOUVEAU : Fonction ultra-rapide (hors cache) pour recalculer le potentiel à la volée ---
+def calculer_potentiel_gain(df, source):
+    if 'Prix $' not in df.columns:
+        return df
+        
+    prix = pd.to_numeric(df['Prix $'], errors='coerce')
+    yahoo = pd.to_numeric(df.get('Pré 1an $', pd.NA), errors='coerce')
+    affaires = pd.to_numeric(df.get('Pré 1an $ Affaires', pd.NA), errors='coerce')
+    
+    if source == "Yahoo":
+        cible = yahoo
+    elif source == "Affaires":
+        cible = affaires
+    else: # Moyenne
+        temp = pd.DataFrame({'Y': yahoo, 'A': affaires})
+        cible = temp.mean(axis=1, skipna=True)
+        
+    mask = prix > 0
+    df.loc[mask, 'Pré G %'] = (cible[mask] - prix[mask]) / prix[mask]
+    
     return df
 
 try:
@@ -139,7 +165,6 @@ try:
     else:
         df_portefeuille_actif = df_base_portefeuille.copy()
 
-    # Transformation en tuple pour assurer la compatibilité avec le système de cache
     symboles_possedes = tuple(set(df_portefeuille_actif['Symbole'].dropna().astype(str).str.strip()))
 
     tab1, tab2, tab3 = st.tabs(["💰 Portefeuille", "🎯 Pros CAD", "🎯 Pros US"])
@@ -147,6 +172,9 @@ try:
     # --- ONGLET 1 : PORTEFEUILLE ---
     with tab1:
         df_live = mise_a_jour_prix(df_portefeuille_actif, est_portefeuille=True)
+        
+        # On calcule le Pré G % en temps réel selon le sélecteur Paramètres
+        df_live = calculer_potentiel_gain(df_live, source_gain)
 
         for col in ["Pré G %", "Gain %", "Var %"]:
             if col in df_live.columns:
@@ -195,14 +223,12 @@ try:
             use_container_width=True,
             hide_index=True,
             height=hauteur_dynamique,
-            # NOUVEAU : Ajout de la colonne "Pré 1an $ Affaires"
             column_order=["No.", "Symbole", "Prix $", "Var %", "Pré 1an $", "Pré 1an $ Affaires", "Pré G %", "Achat $", "Qtée", "Gain %", "Gain $", "Date Achat"],
             column_config={
                 "No.": st.column_config.NumberColumn("No.", format="%d"),
                 "Symbole": st.column_config.LinkColumn("Symbole", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)"),
                 "Pré G %": st.column_config.NumberColumn(format="%.1f %%"),
                 "Prix $": st.column_config.NumberColumn(format="$ %.2f"),
-                # NOUVEAU : Configuration visuelle pour différencier les deux prévisions
                 "Pré 1an $": st.column_config.NumberColumn("Pré 1an $ YF", format="$ %.2f"),
                 "Pré 1an $ Affaires": st.column_config.NumberColumn("Pré 1an $ Aff.", format="$ %.2f"),
                 "Achat $": st.column_config.NumberColumn(format="$ %.2f"),
@@ -215,6 +241,9 @@ try:
 
     # --- TRAITEMENT CENTRALISÉ DES PROSPECTS ---
     df_live_prospects = mise_a_jour_prix(df_base_prospects, est_portefeuille=False, symboles_portefeuille=symboles_possedes)
+    
+    # On calcule le Pré G % en temps réel selon le sélecteur Paramètres
+    df_live_prospects = calculer_potentiel_gain(df_live_prospects, source_gain)
 
     for col in ["Pré G %", "Var %"]:
         if col in df_live_prospects.columns:
@@ -222,7 +251,6 @@ try:
 
     def surligner_prospects(row):
         if row.get('Possede') == True:
-            # NOUVEAU : Couleur Jaune visible mais translucide (rgba(255, 215, 0, 0.4))
             return ['background-color: rgba(255, 215, 0, 0.4)'] * len(row)
         return [''] * len(row)
 
@@ -244,19 +272,20 @@ try:
             ]
             df_prospects_cad = df_prospects_cad.sort_values(by="Pré G %", ascending=False)
 
-        hauteur_cad = (len(df_prospects_cad) * 35) + 43
+        hauteur_cad = (len(df_prospects_cad) * 35) + 43 if len(df_prospects_cad) > 0 else 100
 
         st.dataframe(
             df_prospects_cad.style.apply(surligner_prospects, axis=1),
             use_container_width=True,
             hide_index=True,
             height=hauteur_cad,
-            column_order=["Symbole", "Prix $", "Var %", "Pré 1an $", "Pré G %"],
+            column_order=["Symbole", "Prix $", "Var %", "Pré 1an $", "Pré 1an $ Affaires", "Pré G %"],
             column_config={
                 "Symbole": st.column_config.LinkColumn("Symbole", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)"),
                 "Prix $": st.column_config.NumberColumn("Prix $", format="$ %.2f"),
                 "Var %": st.column_config.NumberColumn("Var %", format="%.1f %%"),
                 "Pré 1an $": st.column_config.NumberColumn("Pré 1an $ YF", format="$ %.2f"),
+                "Pré 1an $ Affaires": st.column_config.NumberColumn("Pré 1an $ Aff.", format="$ %.2f"),
                 "Pré G %": st.column_config.NumberColumn("Pré G %", format="%.1f %%")
             }
         )
@@ -279,19 +308,20 @@ try:
             ]
             df_prospects_usd = df_prospects_usd.sort_values(by="Pré G %", ascending=False)
 
-        hauteur_usd = (len(df_prospects_usd) * 35) + 43
+        hauteur_usd = (len(df_prospects_usd) * 35) + 43 if len(df_prospects_usd) > 0 else 100
 
         st.dataframe(
             df_prospects_usd.style.apply(surligner_prospects, axis=1),
             use_container_width=True,
             hide_index=True,
             height=hauteur_usd,
-            column_order=["Symbole", "Prix $", "Var %", "Pré 1an $", "Pré G %"],
+            column_order=["Symbole", "Prix $", "Var %", "Pré 1an $", "Pré 1an $ Affaires", "Pré G %"],
             column_config={
                 "Symbole": st.column_config.LinkColumn("Symbole", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)"),
                 "Prix $": st.column_config.NumberColumn("Prix $", format="$ %.2f"),
                 "Var %": st.column_config.NumberColumn("Var %", format="%.1f %%"),
                 "Pré 1an $": st.column_config.NumberColumn("Pré 1an $ YF", format="$ %.2f"),
+                "Pré 1an $ Affaires": st.column_config.NumberColumn("Pré 1an $ Aff.", format="$ %.2f"),
                 "Pré G %": st.column_config.NumberColumn("Pré G %", format="%.1f %%")
             }
         )
