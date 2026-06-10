@@ -60,14 +60,14 @@ def charger_donnees_base(nom_feuille):
 
 def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
     """Fonction unique pour mettre à jour Portefeuille ET Prospects"""
-    df['Devise'] = 'USD'  # Valeur par défaut
-    df['Possede'] = False  # Par défaut, non possédé
+    df['Devise'] = 'USD'  
+    df['Possede'] = False  
     for index, row in df.iterrows():
         symbole = row.get('Symbole')
         if pd.notna(symbole):
             symbole_clean = str(symbole).strip()
             
-            # Prédilection de secours de la devise basée sur le symbole
+            # Prédilection de secours de la devise
             if symbole_clean.endswith('.TO') or '.V' in symbole_clean or '.NE' in symbole_clean:
                 df.at[index, 'Devise'] = 'CAD'
             else:
@@ -90,7 +90,7 @@ def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
                     df.at[index, 'Prix $'] = prix_actuel
                     df.at[index, 'Var %'] = (prix_actuel - prix_veille) / prix_veille
                     
-                    # Le calcul des gains passés ne s'applique qu'au Portefeuille
+                    # Seulement pour le Portefeuille
                     if est_portefeuille and 'Achat $' in row and pd.notna(row['Achat $']):
                         achat = row['Achat $']
                         qte = row['Qtée']
@@ -107,12 +107,11 @@ def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
                     if prix_actuel is not None and prix_actuel > 0:
                         df.at[index, 'Pré G %'] = (prevision_1an - prix_actuel) / prix_actuel
                 
-                # Récupération en temps réel de la devise officielle marché
+                # Récupération de la devise officielle
                 devise_officielle = infos_generales.get('currency')
                 if devise_officielle:
                     df.at[index, 'Devise'] = str(devise_officielle).upper()
                 
-                # On injecte l'URL directement dans la colonne Symbole
                 df.at[index, 'Symbole'] = f"https://ca.finance.yahoo.com/quote/{symbole_clean}"
                         
             except Exception:
@@ -124,7 +123,6 @@ try:
         df_base_portefeuille = charger_donnees_base('Portefeuille BNC')
         df_base_prospects = charger_donnees_base('Prospects')
 
-    # Extraction des symboles possédés actifs avant transformation
     if 'No.' in df_base_portefeuille.columns:
         df_portefeuille_actif = df_base_portefeuille[df_base_portefeuille['No.'] != 0].reset_index(drop=True)
     else:
@@ -132,17 +130,16 @@ try:
 
     symboles_possedes = set(df_portefeuille_actif['Symbole'].dropna().astype(str).str.strip())
 
-    # --- MODIFICATION : Mêmes icônes (🎯) et remplacement de USD par US ---
     tab1, tab2, tab3 = st.tabs(["💰 Portefeuille", "🎯 Pros CAD", "🎯 Pros US"])
 
     # --- ONGLET 1 : PORTEFEUILLE ---
     with tab1:
         df_live = mise_a_jour_prix(df_portefeuille_actif, est_portefeuille=True)
 
-        colonnes_pourcentage = ["Pré G %", "Gain %", "Var %"]
-        for col in colonnes_pourcentage:
+        # Force la conversion numérique avant multiplication
+        for col in ["Pré G %", "Gain %", "Var %"]:
             if col in df_live.columns:
-                df_live[col] = df_live[col] * 100
+                df_live[col] = pd.to_numeric(df_live[col], errors='coerce') * 100
 
         if colonne_tri == "Pré G %":
             df_live = df_live.sort_values(by="Pré G %", ascending=True) 
@@ -205,16 +202,17 @@ try:
     # --- TRAITEMENT ET FILTRAGE CENTRALISÉ DES PROSPECTS ---
     df_live_prospects = mise_a_jour_prix(df_base_prospects, est_portefeuille=False, symboles_portefeuille=symboles_possedes)
 
-    colonnes_pourcentage_pro = ["Pré G %", "Var %"]
-    for col in colonnes_pourcentage_pro:
+    # --- CORRECTION ICI : Force la colonne en nombre propre ---
+    for col in ["Pré G %", "Var %"]:
         if col in df_live_prospects.columns:
-            df_live_prospects[col] = df_live_prospects[col] * 100
+            df_live_prospects[col] = pd.to_numeric(df_live_prospects[col], errors='coerce') * 100
             
     if "Pré G %" in df_live_prospects.columns:
-        # Filtre global (Potentiel entre 30% et 100%)
+        # Filtre global strictement numérique (Potentiel entre 30% et 100%)
+        # Si vous ne voyez toujours rien, changez le 30.0 pour 15.0 par exemple !
         df_live_prospects = df_live_prospects[
-            (df_live_prospects["Pré G %"] >= 30) & 
-            (df_live_prospects["Pré G %"] <= 100)
+            (df_live_prospects["Pré G %"] >= 30.0) & 
+            (df_live_prospects["Pré G %"] <= 100.0)
         ]
         df_live_prospects = df_live_prospects.sort_values(by="Pré G %", ascending=False)
 
@@ -223,7 +221,7 @@ try:
             return ['background-color: rgba(0, 123, 255, 0.12)'] * len(row)
         return [''] * len(row)
 
-    # --- ONGLET 2 : PROSPECTS CAD (Pros CAD) ---
+    # --- ONGLET 2 : PROSPECTS CAD ---
     with tab2:
         df_prospects_cad = df_live_prospects[df_live_prospects['Devise'] == 'CAD']
         hauteur_cad = (len(df_prospects_cad) * 35) + 43
@@ -243,7 +241,7 @@ try:
             }
         )
 
-    # --- ONGLET 3 : PROSPECTS USD (Pros US) ---
+    # --- ONGLET 3 : PROSPECTS US ---
     with tab3:
         df_prospects_usd = df_live_prospects[df_live_prospects['Devise'] == 'USD']
         hauteur_usd = (len(df_prospects_usd) * 35) + 43
