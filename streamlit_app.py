@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
 import yfinance as yf
-import requests
-import io
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -11,7 +9,6 @@ st.set_page_config(page_title="Portefeuille BNC", layout="wide")
 # --- ASTUCE CSS : Forcer les proportions exactes sur mobile ---
 st.markdown("""
     <style>
-        /* 1. S'applique uniquement au bloc de tri/rafraîchissement tout en haut */
         div[data-testid="stHorizontalBlock"]:has(div[data-testid="stSelectbox"]) {
             flex-direction: row !important;
             flex-wrap: nowrap !important;
@@ -27,8 +24,6 @@ st.markdown("""
             min-width: 65% !important;
             flex: none !important;
         }
-
-        /* 2. S'applique spécifiquement aux filtres numériques Min/Max des prospects */
         div[data-testid="stHorizontalBlock"]:has(div[data-testid="stNumberInput"]) {
             flex-direction: row !important;
             flex-wrap: nowrap !important;
@@ -58,18 +53,11 @@ with col_btn:
         st.cache_data.clear() 
         st.rerun()
 
-URL_ONEDRIVE = "https://onedrive.live.com/:x:/g/personal/f3dc5429b587ae35/IQAm87v8ehTnQrt_lz2sW1Q5AUk-6g4cno5k6CgDX9V0qtU?download=1"
-
 @st.cache_data(ttl=300)
 def charger_donnees_base(nom_feuille):
-    entetes = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    }
-    reponse = requests.get(URL_ONEDRIVE, headers=entetes, allow_redirects=True)
-    reponse.raise_for_status() 
-    return pd.read_excel(io.BytesIO(reponse.content), sheet_name=nom_feuille, engine='openpyxl')
+    # Lecture directe de votre fichier local
+    return pd.read_excel("Action_2026-c.xlsx", sheet_name=nom_feuille, engine='openpyxl')
 
-# --- REFACTORISATION : Le calcul du (* 100) est mis à l'intérieur du cache pour bloquer le bug ---
 @st.cache_data(ttl=300, show_spinner=False)
 def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
     df = df.copy() 
@@ -99,12 +87,15 @@ def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
                     prix_veille = infos['Close'].iloc[-2]
                     
                     df.at[index, 'Prix $'] = prix_actuel
-                    df.at[index, 'Var %'] = ((prix_actuel - prix_veille) / prix_veille) * 100
+                    
+                    # CORRECTION : Retour aux décimales pures (ex: 0.35)
+                    df.at[index, 'Var %'] = (prix_actuel - prix_veille) / prix_veille
                     
                     if est_portefeuille and 'Achat $' in row and pd.notna(row['Achat $']):
                         achat = row['Achat $']
                         qte = row['Qtée']
-                        df.at[index, 'Gain %'] = ((prix_actuel - achat) / achat) * 100
+                        # CORRECTION : Retour aux décimales pures (ex: 0.35)
+                        df.at[index, 'Gain %'] = (prix_actuel - achat) / achat
                         df.at[index, 'Gain $'] = (prix_actuel - achat) * qte
                 
                 infos_generales = ticker.info
@@ -114,7 +105,8 @@ def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
                     df.at[index, 'Pré 1an $'] = prevision_1an
                     
                     if prix_actuel is not None and prix_actuel > 0:
-                        df.at[index, 'Pré G %'] = ((prevision_1an - prix_actuel) / prix_actuel) * 100
+                        # CORRECTION : Retour aux décimales pures (ex: 0.35)
+                        df.at[index, 'Pré G %'] = (prevision_1an - prix_actuel) / prix_actuel
                 
                 devise_officielle = infos_generales.get('currency')
                 if devise_officielle:
@@ -127,9 +119,9 @@ def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
     return df
 
 try:
-    with st.spinner("Connexion à OneDrive et Yahoo Finance..."):
+    with st.spinner("Connexion à Yahoo Finance..."):
         df_base_portefeuille = charger_donnees_base('Portefeuille BNC')
-        df_base_prospects = charger_donnees_base('Prospects') # Gardé avec le S
+        df_base_prospects = charger_donnees_base('Prospect')
 
     if 'No.' in df_base_portefeuille.columns:
         df_portefeuille_actif = df_base_portefeuille[df_base_portefeuille['No.'] != 0].reset_index(drop=True)
@@ -143,6 +135,11 @@ try:
     # --- ONGLET 1 : PORTEFEUILLE ---
     with tab1:
         df_live = mise_a_jour_prix(df_portefeuille_actif, est_portefeuille=True)
+
+        # C'EST ICI QUE LA MULTIPLICATION UNIQUE PAR 100 SE FAIT POUR TOUT L'ONGLET
+        for col in ["Pré G %", "Gain %", "Var %"]:
+            if col in df_live.columns:
+                df_live[col] = pd.to_numeric(df_live[col], errors='coerce') * 100
 
         if colonne_tri == "Pré G %":
             df_live = df_live.sort_values(by="Pré G %", ascending=True) 
@@ -204,6 +201,11 @@ try:
 
     # --- TRAITEMENT CENTRALISÉ DES PROSPECTS ---
     df_live_prospects = mise_a_jour_prix(df_base_prospects, est_portefeuille=False, symboles_portefeuille=symboles_possedes)
+
+    # C'EST ICI QUE LA MULTIPLICATION UNIQUE PAR 100 SE FAIT POUR TOUT L'ONGLET PROSPECT
+    for col in ["Pré G %", "Var %"]:
+        if col in df_live_prospects.columns:
+            df_live_prospects[col] = pd.to_numeric(df_live_prospects[col], errors='coerce') * 100
 
     def surligner_prospects(row):
         if row.get('Possede') == True:
