@@ -79,10 +79,9 @@ def heure_mise_a_jour():
 @st.cache_data(ttl=300, show_spinner=False)
 def obtenir_taux_change():
     try:
-        # Télécharge le taux de change USD vers CAD actuel
         return yf.Ticker("USDCAD=X").history(period="1d")['Close'].iloc[-1]
     except Exception:
-        return 1.35  # Taux de secours par défaut si Yahoo est hors ligne
+        return 1.35 
 
 # --- TITRE PRINCIPAL ---
 st.title("📈 BNC LIVE")
@@ -96,6 +95,12 @@ col_param, col_btn = st.columns(2)
 with col_param:
     with st.popover("⚙️ Paramètres", use_container_width=True):
         source_gain = st.selectbox("Calcul du Gain", ["Yahoo", "Affaires", "Moyenne"])
+        
+        # --- NOUVEAU : Cases à cocher pour personnaliser l'affichage ---
+        st.markdown("---")
+        st.markdown("**Affichage**")
+        afficher_tendance = st.checkbox("Afficher Tendance (5j)", value=True)
+        afficher_chaleur = st.checkbox("Afficher Chaleur 52 sem.", value=True)
         
 with col_btn:
     if st.button(f"🔄 Rafraîchir ({heure_actuelle})", use_container_width=True):
@@ -144,8 +149,6 @@ def construire_donnees(df, dict_yahoo, est_portefeuille=True, symboles_portefeui
     df['Possede'] = False  
     df['Pré 1an $ Yahoo'] = np.nan
     df['Chaleur 52s'] = np.nan 
-    
-    # NOUVEAU : Préparation de la colonne de liste pour le mini-graphique (Sparkline)
     tendances = []
     
     if 'Pré 1an $' in df.columns and not est_portefeuille:
@@ -177,7 +180,6 @@ def construire_donnees(df, dict_yahoo, est_portefeuille=True, symboles_portefeui
                 df.at[index, 'Prix $'] = prix_actuel
                 df.at[index, 'Var %'] = (prix_actuel - prix_veille) / prix_veille
                 
-                # Ajout de l'historique des 5 jours pour le graphique
                 tendances.append(infos['Close'].tolist())
                 
                 if est_portefeuille and 'Achat $' in row and pd.notna(row['Achat $']):
@@ -291,6 +293,22 @@ try:
 
     tab1, tab2, tab3 = st.tabs(["💰 Portefeuille", "🎯 Pros CAD", "🎯 Pros US"])
 
+    # --- LISTE DYNAMIQUE DES COLONNES POUR L'ONGLET PORTEFEUILLE ---
+    colonnes_base_port = ["No.", "Symbole", "Prix $", "Var %"]
+    if afficher_tendance:
+        colonnes_base_port.append("Tendance")
+    if afficher_chaleur:
+        colonnes_base_port.append("Chaleur 52s")
+    colonnes_base_port.extend(["Pré 1an $ Display", "Pré 1an $ Aff Display", "Pré G %", "Achat $", "Qtée", "Gain %", "Gain $", "Date Achat"])
+
+    # --- LISTE DYNAMIQUE DES COLONNES POUR LES ONGLETS PROSPECTS ---
+    colonnes_base_pros = ["Symbole", "Prix $", "Var %"]
+    if afficher_tendance:
+        colonnes_base_pros.append("Tendance")
+    if afficher_chaleur:
+        colonnes_base_pros.append("Chaleur 52s")
+    colonnes_base_pros.extend(["Pré 1an $ Display", "Pré 1an $ Aff Display", "Pré G %"])
+
     # --- ONGLET 1 : PORTEFEUILLE ---
     with tab1:
         df_live = construire_donnees(df_portefeuille_actif, yahoo_data, est_portefeuille=True)
@@ -300,7 +318,6 @@ try:
             if col in df_live.columns:
                 df_live[col] = pd.to_numeric(df_live[col], errors='coerce') * 100
 
-        # --- NOUVEAU : Conversion exacte des devises en CAD ---
         if 'Prix $' in df_live.columns and 'Qtée' in df_live.columns:
             valeurs_brutes = df_live['Prix $'] * df_live['Qtée']
             gains_bruts = df_live['Gain $']
@@ -351,14 +368,14 @@ try:
             use_container_width=True,
             hide_index=True,
             height=hauteur_dynamique,
-            column_order=["No.", "Symbole", "Prix $", "Var %", "Tendance", "Chaleur 52s", "Pré 1an $ Display", "Pré 1an $ Aff Display", "Pré G %", "Achat $", "Qtée", "Gain %", "Gain $", "Date Achat"],
+            column_order=colonnes_base_port, # <- Utilisation de la liste dynamique ici
             column_config={
                 "No.": st.column_config.NumberColumn("No.", format="%d"),
                 "Symbole": st.column_config.LinkColumn("Symbole", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)"),
                 "Pré G %": st.column_config.NumberColumn(format="%.1f %%"),
                 "Prix $": st.column_config.NumberColumn(format="$ %.2f"),
                 "Var %": st.column_config.NumberColumn(format="%.1f %%"),
-                "Tendance": st.column_config.LineChartColumn("Tendance (5j)"), # NOUVEAU GRAPH
+                "Tendance": st.column_config.LineChartColumn("Tendance (5j)"), 
                 "Chaleur 52s": st.column_config.ProgressColumn("♨️ 52 sem.", format="%.0f %%", min_value=0, max_value=100),
                 "Pré 1an $ Display": st.column_config.NumberColumn("Pré YF", format="$ %.2f"),
                 "Pré 1an $ Aff Display": st.column_config.NumberColumn("Pré Aff", format="$ %.2f"),
@@ -403,12 +420,12 @@ try:
             use_container_width=True,
             hide_index=True,
             height=hauteur_cad,
-            column_order=["Symbole", "Prix $", "Var %", "Tendance", "Chaleur 52s", "Pré 1an $ Display", "Pré 1an $ Aff Display", "Pré G %"],
+            column_order=colonnes_base_pros, # <- Utilisation de la liste dynamique ici
             column_config={
                 "Symbole": st.column_config.LinkColumn("Symbole", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)"),
                 "Prix $": st.column_config.NumberColumn("Prix $", format="$ %.2f"),
                 "Var %": st.column_config.NumberColumn("Var %", format="%.1f %%"),
-                "Tendance": st.column_config.LineChartColumn("Tendance (5j)"), # NOUVEAU GRAPH
+                "Tendance": st.column_config.LineChartColumn("Tendance (5j)"),
                 "Chaleur 52s": st.column_config.ProgressColumn("♨️ 52 sem.", format="%.0f %%", min_value=0, max_value=100),
                 "Pré 1an $ Display": st.column_config.NumberColumn("Pré YF", format="$ %.2f"),
                 "Pré 1an $ Aff Display": st.column_config.NumberColumn("Pré Aff", format="$ %.2f"),
@@ -442,12 +459,12 @@ try:
             use_container_width=True,
             hide_index=True,
             height=hauteur_usd,
-            column_order=["Symbole", "Prix $", "Var %", "Tendance", "Chaleur 52s", "Pré 1an $ Display", "Pré 1an $ Aff Display", "Pré G %"],
+            column_order=colonnes_base_pros, # <- Utilisation de la liste dynamique ici
             column_config={
                 "Symbole": st.column_config.LinkColumn("Symbole", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)"),
                 "Prix $": st.column_config.NumberColumn("Prix $", format="$ %.2f"),
                 "Var %": st.column_config.NumberColumn("Var %", format="%.1f %%"),
-                "Tendance": st.column_config.LineChartColumn("Tendance (5j)"), # NOUVEAU GRAPH
+                "Tendance": st.column_config.LineChartColumn("Tendance (5j)"),
                 "Chaleur 52s": st.column_config.ProgressColumn("♨️ 52 sem.", format="%.0f %%", min_value=0, max_value=100),
                 "Pré 1an $ Display": st.column_config.NumberColumn("Pré YF", format="$ %.2f"),
                 "Pré 1an $ Aff Display": st.column_config.NumberColumn("Pré Aff", format="$ %.2f"),
