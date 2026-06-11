@@ -12,7 +12,7 @@ st.set_page_config(page_title="Portefeuille BNC", layout="wide")
 # --- ASTUCE CSS : Optimisation totale de l'espace sur mobile ---
 st.markdown("""
     <style>
-        /* 1. ÉLIMINER TOTALEMENT LES ICÔNES ET L'EN-TÊTE STREAMLIT */
+        /* 1. ÉLIMINER TOTALEMENT L'EN-TÊTE STREAMLIT (en haut à droite) */
         [data-testid="stHeader"] {
             display: none !important;
         }
@@ -29,7 +29,12 @@ st.markdown("""
             padding-bottom: 1rem !important;
         }
 
-        /* 3. Aligner Paramètres et Rafraîchir sur la même ligne */
+        /* 3. MASQUER LA BARRE D'OUTILS DES TABLEAUX (Loupe, Téléchargement, Plein écran) */
+        [data-testid="stElementToolbar"] {
+            display: none !important;
+        }
+
+        /* 4. Aligner Paramètres et Rafraîchir sur la même ligne */
         div[data-testid="stHorizontalBlock"]:has(div[data-testid="stPopover"]) {
             flex-direction: row !important;
             flex-wrap: nowrap !important;
@@ -41,7 +46,7 @@ st.markdown("""
             flex: none !important;
         }
 
-        /* 4. Aligner Gain, Valeur Totale et Tri sur la même ligne dans l'onglet Portefeuille */
+        /* 5. Aligner Gain, Valeur Totale et Tri sur la même ligne dans l'onglet Portefeuille */
         div[data-testid="stHorizontalBlock"]:has(div.stats-block) {
             flex-direction: row !important;
             flex-wrap: nowrap !important;
@@ -54,7 +59,7 @@ st.markdown("""
             flex: none !important;
         }
 
-        /* 5. S'applique spécifiquement aux filtres numériques Min/Max des prospects */
+        /* 6. S'applique spécifiquement aux filtres numériques Min/Max des prospects */
         div[data-testid="stHorizontalBlock"]:has(div[data-testid="stNumberInput"]) {
             flex-direction: row !important;
             flex-wrap: nowrap !important;
