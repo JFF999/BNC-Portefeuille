@@ -12,24 +12,32 @@ st.set_page_config(page_title="Portefeuille BNC", layout="wide")
 # --- ASTUCE CSS : Forcer les proportions exactes sur mobile ---
 st.markdown("""
     <style>
-        /* 1. S'applique uniquement au bloc de tri/rafraîchissement tout en haut */
-        div[data-testid="stHorizontalBlock"]:has(div[data-testid="stSelectbox"]) {
+        /* 1. Aligner Paramètres et Rafraîchir sur la même ligne */
+        div[data-testid="stHorizontalBlock"]:has(div[data-testid="stPopover"]) {
             flex-direction: row !important;
             flex-wrap: nowrap !important;
             gap: 10px !important;
         }
-        div[data-testid="stHorizontalBlock"]:has(div[data-testid="stSelectbox"]) > div:nth-child(1) {
-            width: 35% !important;
-            min-width: 35% !important;
-            flex: none !important;
-        }
-        div[data-testid="stHorizontalBlock"]:has(div[data-testid="stSelectbox"]) > div:nth-child(2) {
-            width: 65% !important;
-            min-width: 65% !important;
+        div[data-testid="stHorizontalBlock"]:has(div[data-testid="stPopover"]) > div {
+            width: 50% !important;
+            min-width: 50% !important;
             flex: none !important;
         }
 
-        /* 2. S'applique spécifiquement aux filtres numériques Min/Max des prospects */
+        /* 2. Aligner Gain, Valeur Totale et Tri sur la même ligne dans l'onglet Portefeuille */
+        div[data-testid="stHorizontalBlock"]:has(div.stats-block) {
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: center !important;
+            gap: 5px !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(div.stats-block) > div {
+            width: 33.33% !important;
+            min-width: 33.33% !important;
+            flex: none !important;
+        }
+
+        /* 3. S'applique spécifiquement aux filtres numériques Min/Max des prospects */
         div[data-testid="stHorizontalBlock"]:has(div[data-testid="stNumberInput"]) {
             flex-direction: row !important;
             flex-wrap: nowrap !important;
@@ -46,21 +54,17 @@ def heure_mise_a_jour():
     return datetime.now(ZoneInfo("America/Toronto")).strftime("%H:%M")
 
 # --- TITRE PRINCIPAL ---
-col_title, col_params = st.columns([8, 2])
-with col_title:
-    st.title("📈 BNC LIVE")
-with col_params:
-    st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
-    with st.popover("⚙️"):
-        source_gain = st.selectbox("Calcul du Gain", ["Yahoo", "Affaires", "Moyenne"])
+st.title("📈 BNC LIVE")
 
 heure_actuelle = heure_mise_a_jour()
 
-col_tri, col_btn = st.columns([1, 2.5])
+# --- HAUT DE PAGE : Paramètres à gauche, Rafraîchir à droite ---
+col_param, col_btn = st.columns(2)
 
-with col_tri:
-    colonne_tri = st.selectbox("Tri", ["Pré G %", "Gain %"], label_visibility="collapsed")
-    
+with col_param:
+    with st.popover("⚙️ Paramètres", use_container_width=True):
+        source_gain = st.selectbox("Calcul du Gain", ["Yahoo", "Affaires", "Moyenne"])
+        
 with col_btn:
     if st.button(f"🔄 Rafraîchir ({heure_actuelle})", use_container_width=True):
         st.cache_data.clear() 
@@ -195,30 +199,40 @@ try:
             if col in df_live.columns:
                 df_live[col] = pd.to_numeric(df_live[col], errors='coerce') * 100
 
-        if colonne_tri == "Pré G %":
-            df_live = df_live.sort_values(by="Pré G %", ascending=True) 
-        elif colonne_tri == "Gain %":
-            df_live = df_live.sort_values(by="Gain %", ascending=False) 
-
+        # Calcul des totaux
         valeur_totale = (df_live['Prix $'] * df_live['Qtée']).sum()
         gain_total = df_live['Gain $'].sum()
 
         gain_formate = f"{gain_total:,.2f} $".replace(',', ' ')
         valeur_formate = f"{valeur_totale:,.2f} $".replace(',', ' ')
 
-        st.markdown(f"""
-            <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
-                <div style="flex: 1; text-align: left;">
+        # --- NOUVEAU : Affichage compact (Gain, Valeur, Tri) sur la même ligne ---
+        col_gain, col_val, col_tri = st.columns(3)
+        with col_gain:
+            st.markdown(f"""
+                <div class="stats-block" style="text-align: left; padding-top: 5px;">
                     <p style="margin: 0px; font-size: 14px; color: gray;">Gain total</p>
-                    <p style="margin: 0px; font-size: 20px; font-weight: bold;">{gain_formate}</p>
+                    <p style="margin: 0px; font-size: 18px; font-weight: bold;">{gain_formate}</p>
                 </div>
-                <div style="flex: 1; text-align: center;">
+            """, unsafe_allow_html=True)
+            
+        with col_val:
+            st.markdown(f"""
+                <div class="stats-block" style="text-align: center; padding-top: 5px;">
                     <p style="margin: 0px; font-size: 14px; color: gray;">Valeur totale</p>
-                    <p style="margin: 0px; font-size: 20px; font-weight: bold;">{valeur_formate}</p>
+                    <p style="margin: 0px; font-size: 18px; font-weight: bold;">{valeur_formate}</p>
                 </div>
-                <div style="flex: 1;"></div>
-            </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
+            
+        with col_tri:
+            # Le Tri est maintenant ici, juste à côté de "Valeur totale"
+            colonne_tri = st.selectbox("Tri", ["Pré G %", "Gain %"], key="tri_portefeuille")
+
+        # Application du tri juste avant l'affichage du tableau
+        if colonne_tri == "Pré G %":
+            df_live = df_live.sort_values(by="Pré G %", ascending=True) 
+        elif colonne_tri == "Gain %":
+            df_live = df_live.sort_values(by="Gain %", ascending=False) 
 
         def couleur_alerte_vente(valeur):
             if pd.isna(valeur):
@@ -245,7 +259,6 @@ try:
                 "Pré G %": st.column_config.NumberColumn(format="%.1f %%"),
                 "Prix $": st.column_config.NumberColumn(format="$ %.2f"),
                 
-                # TITRES ULTRA-COMPACTS
                 "Pré 1an $ Display": st.column_config.NumberColumn("Pré YF", format="$ %.2f"),
                 "Pré 1an $ Aff Display": st.column_config.NumberColumn("Pré Aff", format="$ %.2f"),
                 
@@ -301,7 +314,6 @@ try:
                 "Prix $": st.column_config.NumberColumn("Prix $", format="$ %.2f"),
                 "Var %": st.column_config.NumberColumn("Var %", format="%.1f %%"),
                 
-                # TITRES ULTRA-COMPACTS
                 "Pré 1an $ Display": st.column_config.NumberColumn("Pré YF", format="$ %.2f"),
                 "Pré 1an $ Aff Display": st.column_config.NumberColumn("Pré Aff", format="$ %.2f"),
                 
@@ -309,7 +321,7 @@ try:
             }
         )
 
-    # --- ONGLET 3 : PROSPEcripts US ---
+    # --- ONGLET 3 : PROSPECTS US ---
     with tab3:
         col_min_us, col_max_us, col_vide_us = st.columns([1, 1, 2])
         with col_min_us:
@@ -340,7 +352,6 @@ try:
                 "Prix $": st.column_config.NumberColumn("Prix $", format="$ %.2f"),
                 "Var %": st.column_config.NumberColumn("Var %", format="%.1f %%"),
                 
-                # TITRES ULTRA-COMPACTS
                 "Pré 1an $ Display": st.column_config.NumberColumn("Pré YF", format="$ %.2f"),
                 "Pré 1an $ Aff Display": st.column_config.NumberColumn("Pré Aff", format="$ %.2f"),
                 
