@@ -12,7 +12,24 @@ st.set_page_config(page_title="Portefeuille BNC", layout="wide")
 # --- ASTUCE CSS : Optimisation totale de l'espace sur mobile ---
 st.markdown("""
     <style>
-        /* 1. Aligner Paramètres et Rafraîchir sur la même ligne */
+        /* 1. ÉLIMINER TOTALEMENT LES ICÔNES ET L'EN-TÊTE STREAMLIT */
+        [data-testid="stHeader"] {
+            display: none !important;
+        }
+        #MainMenu {
+            display: none !important;
+        }
+        footer {
+            display: none !important;
+        }
+
+        /* 2. SUPPRIMER L'ESPACE VIDE GÉANT TOUT EN HAUT DE L'ÉCRAN */
+        .block-container {
+            padding-top: 1.5rem !important;
+            padding-bottom: 1rem !important;
+        }
+
+        /* 3. Aligner Paramètres et Rafraîchir sur la même ligne */
         div[data-testid="stHorizontalBlock"]:has(div[data-testid="stPopover"]) {
             flex-direction: row !important;
             flex-wrap: nowrap !important;
@@ -24,7 +41,7 @@ st.markdown("""
             flex: none !important;
         }
 
-        /* 2. Aligner Gain, Valeur Totale et Tri sur la même ligne dans l'onglet Portefeuille */
+        /* 4. Aligner Gain, Valeur Totale et Tri sur la même ligne dans l'onglet Portefeuille */
         div[data-testid="stHorizontalBlock"]:has(div.stats-block) {
             flex-direction: row !important;
             flex-wrap: nowrap !important;
@@ -37,7 +54,7 @@ st.markdown("""
             flex: none !important;
         }
 
-        /* 3. S'applique spécifiquement aux filtres numériques Min/Max des prospects */
+        /* 5. S'applique spécifiquement aux filtres numériques Min/Max des prospects */
         div[data-testid="stHorizontalBlock"]:has(div[data-testid="stNumberInput"]) {
             flex-direction: row !important;
             flex-wrap: nowrap !important;
@@ -45,11 +62,6 @@ st.markdown("""
         }
         div[data-testid="stHorizontalBlock"]:has(div[data-testid="stNumberInput"]) > div {
             min-width: 110px !important; 
-        }
-        
-        /* 4. Masquer les icônes par défaut de Streamlit en haut à droite */
-        header {
-            visibility: hidden !important;
         }
     </style>
 """, unsafe_allow_html=True)
