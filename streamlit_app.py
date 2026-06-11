@@ -76,10 +76,19 @@ st.markdown("""
 def heure_mise_a_jour():
     return datetime.now(ZoneInfo("America/Toronto")).strftime("%H:%M")
 
+@st.cache_data(ttl=300, show_spinner=False)
+def obtenir_taux_change():
+    try:
+        # Télécharge le taux de change USD vers CAD actuel
+        return yf.Ticker("USDCAD=X").history(period="1d")['Close'].iloc[-1]
+    except Exception:
+        return 1.35  # Taux de secours par défaut si Yahoo est hors ligne
+
 # --- TITRE PRINCIPAL ---
 st.title("📈 BNC LIVE")
 
 heure_actuelle = heure_mise_a_jour()
+taux_usdcad = obtenir_taux_change()
 
 # --- HAUT DE PAGE : Paramètres à gauche, Rafraîchir à droite ---
 col_param, col_btn = st.columns(2)
@@ -108,7 +117,7 @@ def charger_donnees_base(nom_feuille):
     df.columns = [' '.join(c.split()) for c in df.columns] 
     return df
 
-# --- OPTIMISATION 4 : MOTEUR TURBO (Multithreading) ---
+# --- MOTEUR TURBO (Multithreading) ---
 @st.cache_data(ttl=300, show_spinner=False)
 def telecharger_tous_les_prix_yahoo(symboles):
     resultats = {}
@@ -121,7 +130,6 @@ def telecharger_tous_les_prix_yahoo(symboles):
         except Exception:
             return sym, pd.DataFrame(), {}
 
-    # Télécharge jusqu'à 15 actions simultanément en arrière-plan
     with ThreadPoolExecutor(max_workers=15) as executor:
         futures = [executor.submit(fetch_single, sym) for sym in symboles]
         for future in as_completed(futures):
@@ -135,6 +143,10 @@ def construire_donnees(df, dict_yahoo, est_portefeuille=True, symboles_portefeui
     df['Devise'] = 'USD'  
     df['Possede'] = False  
     df['Pré 1an $ Yahoo'] = np.nan
+    df['Chaleur 52s'] = np.nan 
+    
+    # NOUVEAU : Préparation de la colonne de liste pour le mini-graphique (Sparkline)
+    tendances = []
     
     if 'Pré 1an $' in df.columns and not est_portefeuille:
         df = df.rename(columns={'Pré 1an $': 'Pré 1an $ Fichier'})
@@ -165,22 +177,39 @@ def construire_donnees(df, dict_yahoo, est_portefeuille=True, symboles_portefeui
                 df.at[index, 'Prix $'] = prix_actuel
                 df.at[index, 'Var %'] = (prix_actuel - prix_veille) / prix_veille
                 
+                # Ajout de l'historique des 5 jours pour le graphique
+                tendances.append(infos['Close'].tolist())
+                
                 if est_portefeuille and 'Achat $' in row and pd.notna(row['Achat $']):
                     achat = row['Achat $']
                     qte = row['Qtée']
                     df.at[index, 'Gain %'] = (prix_actuel - achat) / achat
                     df.at[index, 'Gain $'] = (prix_actuel - achat) * qte
+            else:
+                tendances.append(None)
             
             prevision_1an = infos_gen.get('targetMeanPrice')
             if prevision_1an is not None:
                 df.at[index, 'Pré 1an $ Yahoo'] = prevision_1an
                 
+            low_52 = infos_gen.get('fiftyTwoWeekLow')
+            high_52 = infos_gen.get('fiftyTwoWeekHigh')
+            if low_52 is not None and high_52 is not None and prix_actuel is not None:
+                if high_52 > low_52:
+                    chaleur = ((prix_actuel - low_52) / (high_52 - low_52)) * 100
+                    df.at[index, 'Chaleur 52s'] = max(0, min(100, chaleur)) 
+                else:
+                    df.at[index, 'Chaleur 52s'] = 50.0
+            
             devise_off = infos_gen.get('currency')
             if devise_off:
                 df.at[index, 'Devise'] = str(devise_off).upper()
             
             df.at[index, 'Symbole'] = f"https://ca.finance.yahoo.com/quote/{symbole_clean}"
-                        
+        else:
+            tendances.append(None)
+            
+    df['Tendance'] = tendances
     return df
 
 def calculer_potentiel_gain(df, source, est_portefeuille=True):
@@ -216,14 +245,13 @@ def calculer_potentiel_gain(df, source, est_portefeuille=True):
         
     return df
 
-# --- OPTIMISATION 1 : COULEURS POUR VAR % ---
 def couleur_var(valeur):
     if pd.isna(valeur):
         return ''
     if valeur > 0:
-        return 'color: #00cc00;' # Vert vif pour la hausse
+        return 'color: #00cc00;' 
     elif valeur < 0:
-        return 'color: #ff4d4d;' # Rouge vif pour la baisse
+        return 'color: #ff4d4d;' 
     return ''
 
 def couleur_alerte_vente(valeur):
@@ -251,7 +279,6 @@ try:
     else:
         df_portefeuille_actif = df_base_portefeuille.copy()
 
-    # MOTEUR TURBO : On extrait tous les symboles uniques
     tous_les_symboles = set()
     for df_temp in [df_portefeuille_actif, df_base_prospects]:
         if 'Symbole' in df_temp.columns:
@@ -273,17 +300,28 @@ try:
             if col in df_live.columns:
                 df_live[col] = pd.to_numeric(df_live[col], errors='coerce') * 100
 
-        valeur_totale = (df_live['Prix $'] * df_live['Qtée']).sum()
-        gain_total = df_live['Gain $'].sum()
+        # --- NOUVEAU : Conversion exacte des devises en CAD ---
+        if 'Prix $' in df_live.columns and 'Qtée' in df_live.columns:
+            valeurs_brutes = df_live['Prix $'] * df_live['Qtée']
+            gains_bruts = df_live['Gain $']
+            
+            valeurs_converties = np.where(df_live['Devise'] == 'USD', valeurs_brutes * taux_usdcad, valeurs_brutes)
+            gains_convertis = np.where(df_live['Devise'] == 'USD', gains_bruts * taux_usdcad, gains_bruts)
+            
+            valeur_totale_nette = valeurs_converties.sum()
+            gain_total_net = gains_convertis.sum()
+        else:
+            valeur_totale_nette = 0
+            gain_total_net = 0
 
-        gain_formate = f"{gain_total:,.2f} $".replace(',', ' ')
-        valeur_formate = f"{valeur_totale:,.2f} $".replace(',', ' ')
+        gain_formate = f"{gain_total_net:,.2f} $ CA".replace(',', ' ')
+        valeur_formate = f"{valeur_totale_nette:,.2f} $ CA".replace(',', ' ')
 
         col_gain, col_val, col_tri = st.columns(3)
         with col_gain:
             st.markdown(f"""
                 <div class="stats-block" style="text-align: left; padding-top: 5px;">
-                    <p style="margin: 0px; font-size: 14px; color: gray;">Gain total</p>
+                    <p style="margin: 0px; font-size: 14px; color: gray;">Gain net ($ CA)</p>
                     <p style="margin: 0px; font-size: 18px; font-weight: bold;">{gain_formate}</p>
                 </div>
             """, unsafe_allow_html=True)
@@ -291,8 +329,9 @@ try:
         with col_val:
             st.markdown(f"""
                 <div class="stats-block" style="text-align: center; padding-top: 5px;">
-                    <p style="margin: 0px; font-size: 14px; color: gray;">Valeur totale</p>
+                    <p style="margin: 0px; font-size: 14px; color: gray;">Valeur Nette ($ CA)</p>
                     <p style="margin: 0px; font-size: 18px; font-weight: bold;">{valeur_formate}</p>
+                    <p style="margin: 0px; font-size: 11px; color: gray;">1 USD = {taux_usdcad:.3f} CAD</p>
                 </div>
             """, unsafe_allow_html=True)
             
@@ -304,7 +343,6 @@ try:
         elif colonne_tri == "Gain %":
             df_live = df_live.sort_values(by="Gain %", ascending=False) 
 
-        # Application des couleurs (Alerte sur Pré G% et Vert/Rouge sur Var%)
         df_stylise = df_live.style.map(couleur_alerte_vente, subset=['Pré G %']).map(couleur_var, subset=['Var %'])
         hauteur_dynamique = (len(df_live) * 35) + 43
 
@@ -313,13 +351,15 @@ try:
             use_container_width=True,
             hide_index=True,
             height=hauteur_dynamique,
-            column_order=["No.", "Symbole", "Prix $", "Var %", "Pré 1an $ Display", "Pré 1an $ Aff Display", "Pré G %", "Achat $", "Qtée", "Gain %", "Gain $", "Date Achat"],
+            column_order=["No.", "Symbole", "Prix $", "Var %", "Tendance", "Chaleur 52s", "Pré 1an $ Display", "Pré 1an $ Aff Display", "Pré G %", "Achat $", "Qtée", "Gain %", "Gain $", "Date Achat"],
             column_config={
                 "No.": st.column_config.NumberColumn("No.", format="%d"),
                 "Symbole": st.column_config.LinkColumn("Symbole", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)"),
                 "Pré G %": st.column_config.NumberColumn(format="%.1f %%"),
                 "Prix $": st.column_config.NumberColumn(format="$ %.2f"),
                 "Var %": st.column_config.NumberColumn(format="%.1f %%"),
+                "Tendance": st.column_config.LineChartColumn("Tendance (5j)"), # NOUVEAU GRAPH
+                "Chaleur 52s": st.column_config.ProgressColumn("♨️ 52 sem.", format="%.0f %%", min_value=0, max_value=100),
                 "Pré 1an $ Display": st.column_config.NumberColumn("Pré YF", format="$ %.2f"),
                 "Pré 1an $ Aff Display": st.column_config.NumberColumn("Pré Aff", format="$ %.2f"),
                 "Achat $": st.column_config.NumberColumn(format="$ %.2f"),
@@ -356,8 +396,6 @@ try:
             df_prospects_cad = df_prospects_cad.sort_values(by="Pré G %", ascending=False)
 
         hauteur_cad = (len(df_prospects_cad) * 35) + 43 if len(df_prospects_cad) > 0 else 100
-        
-        # Surlignage Jaune + Couleurs Vert/Rouge pour Var%
         df_cad_stylise = df_prospects_cad.style.apply(surligner_prospects, axis=1).map(couleur_var, subset=['Var %'])
 
         st.dataframe(
@@ -365,11 +403,13 @@ try:
             use_container_width=True,
             hide_index=True,
             height=hauteur_cad,
-            column_order=["Symbole", "Prix $", "Var %", "Pré 1an $ Display", "Pré 1an $ Aff Display", "Pré G %"],
+            column_order=["Symbole", "Prix $", "Var %", "Tendance", "Chaleur 52s", "Pré 1an $ Display", "Pré 1an $ Aff Display", "Pré G %"],
             column_config={
                 "Symbole": st.column_config.LinkColumn("Symbole", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)"),
                 "Prix $": st.column_config.NumberColumn("Prix $", format="$ %.2f"),
                 "Var %": st.column_config.NumberColumn("Var %", format="%.1f %%"),
+                "Tendance": st.column_config.LineChartColumn("Tendance (5j)"), # NOUVEAU GRAPH
+                "Chaleur 52s": st.column_config.ProgressColumn("♨️ 52 sem.", format="%.0f %%", min_value=0, max_value=100),
                 "Pré 1an $ Display": st.column_config.NumberColumn("Pré YF", format="$ %.2f"),
                 "Pré 1an $ Aff Display": st.column_config.NumberColumn("Pré Aff", format="$ %.2f"),
                 "Pré G %": st.column_config.NumberColumn("Pré G %", format="%.1f %%")
@@ -395,8 +435,6 @@ try:
             df_prospects_usd = df_prospects_usd.sort_values(by="Pré G %", ascending=False)
 
         hauteur_usd = (len(df_prospects_usd) * 35) + 43 if len(df_prospects_usd) > 0 else 100
-
-        # Surlignage Jaune + Couleurs Vert/Rouge pour Var%
         df_usd_stylise = df_prospects_usd.style.apply(surligner_prospects, axis=1).map(couleur_var, subset=['Var %'])
 
         st.dataframe(
@@ -404,11 +442,13 @@ try:
             use_container_width=True,
             hide_index=True,
             height=hauteur_usd,
-            column_order=["Symbole", "Prix $", "Var %", "Pré 1an $ Display", "Pré 1an $ Aff Display", "Pré G %"],
+            column_order=["Symbole", "Prix $", "Var %", "Tendance", "Chaleur 52s", "Pré 1an $ Display", "Pré 1an $ Aff Display", "Pré G %"],
             column_config={
                 "Symbole": st.column_config.LinkColumn("Symbole", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)"),
                 "Prix $": st.column_config.NumberColumn("Prix $", format="$ %.2f"),
                 "Var %": st.column_config.NumberColumn("Var %", format="%.1f %%"),
+                "Tendance": st.column_config.LineChartColumn("Tendance (5j)"), # NOUVEAU GRAPH
+                "Chaleur 52s": st.column_config.ProgressColumn("♨️ 52 sem.", format="%.0f %%", min_value=0, max_value=100),
                 "Pré 1an $ Display": st.column_config.NumberColumn("Pré YF", format="$ %.2f"),
                 "Pré 1an $ Aff Display": st.column_config.NumberColumn("Pré Aff", format="$ %.2f"),
                 "Pré G %": st.column_config.NumberColumn("Pré G %", format="%.1f %%")
