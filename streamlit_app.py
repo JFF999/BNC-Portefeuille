@@ -94,16 +94,19 @@ col_param, col_btn = st.columns(2)
 
 with col_param:
     with st.popover("⚙️ Paramètres", use_container_width=True):
-        source_gain = st.selectbox("Calcul du Gain", ["Yahoo", "Affaires", "Moyenne"])
+        # Index=2 sélectionne "Moyenne" par défaut (0=Yahoo, 1=Affaires, 2=Moyenne)
+        source_gain = st.selectbox("Calcul du Gain", ["Yahoo", "Affaires", "Moyenne"], index=2)
         
         st.markdown("---")
         st.markdown("**Affichage**")
         
-        # --- NOUVEAU : Plus de cases à cocher pour une personnalisation totale ---
         afficher_no = st.checkbox("Afficher No.", value=True)
         afficher_var = st.checkbox("Afficher Var %", value=True)
         afficher_tendance = st.checkbox("Afficher Tendance (5j)", value=True)
         afficher_chaleur = st.checkbox("Afficher Chaleur 52 sem.", value=True)
+        
+        # --- NOUVEAU : Case à cocher pour le Taux de change ---
+        activer_taux_change = st.checkbox("Taux de change actif", value=True)
         
 with col_btn:
     if st.button(f"🔄 Rafraîchir ({heure_actuelle})", use_container_width=True):
@@ -333,27 +336,44 @@ try:
             if col in df_live.columns:
                 df_live[col] = pd.to_numeric(df_live[col], errors='coerce') * 100
 
+        # --- LOGIQUE DYNAMIQUE POUR LE TAUX DE CHANGE ---
         if 'Prix $' in df_live.columns and 'Qtée' in df_live.columns:
             valeurs_brutes = df_live['Prix $'] * df_live['Qtée']
             gains_bruts = df_live['Gain $']
             
-            valeurs_converties = np.where(df_live['Devise'] == 'USD', valeurs_brutes * taux_usdcad, valeurs_brutes)
-            gains_convertis = np.where(df_live['Devise'] == 'USD', gains_bruts * taux_usdcad, gains_bruts)
+            if activer_taux_change:
+                valeurs_converties = np.where(df_live['Devise'] == 'USD', valeurs_brutes * taux_usdcad, valeurs_brutes)
+                gains_convertis = np.where(df_live['Devise'] == 'USD', gains_bruts * taux_usdcad, gains_bruts)
+                titre_gain = "Gain net ($ CA)"
+                titre_valeur = "Valeur Nette ($ CA)"
+                symbole_devise = "$ CA"
+                texte_taux = f"<p style='margin: 0px; font-size: 11px; color: gray;'>1 USD = {taux_usdcad:.3f} CAD</p>"
+            else:
+                valeurs_converties = valeurs_brutes
+                gains_convertis = gains_bruts
+                titre_gain = "Gain total"
+                titre_valeur = "Valeur totale"
+                symbole_devise = "$"
+                texte_taux = ""
             
             valeur_totale_nette = valeurs_converties.sum()
             gain_total_net = gains_convertis.sum()
         else:
             valeur_totale_nette = 0
             gain_total_net = 0
+            titre_gain = "Gain total"
+            titre_valeur = "Valeur totale"
+            symbole_devise = "$"
+            texte_taux = ""
 
-        gain_formate = f"{gain_total_net:,.2f} $ CA".replace(',', ' ')
-        valeur_formate = f"{valeur_totale_nette:,.2f} $ CA".replace(',', ' ')
+        gain_formate = f"{gain_total_net:,.2f} {symbole_devise}".replace(',', ' ')
+        valeur_formate = f"{valeur_totale_nette:,.2f} {symbole_devise}".replace(',', ' ')
 
         col_gain, col_val, col_tri = st.columns(3)
         with col_gain:
             st.markdown(f"""
                 <div class="stats-block" style="text-align: left; padding-top: 5px;">
-                    <p style="margin: 0px; font-size: 14px; color: gray;">Gain net ($ CA)</p>
+                    <p style="margin: 0px; font-size: 14px; color: gray;">{titre_gain}</p>
                     <p style="margin: 0px; font-size: 18px; font-weight: bold;">{gain_formate}</p>
                 </div>
             """, unsafe_allow_html=True)
@@ -361,9 +381,9 @@ try:
         with col_val:
             st.markdown(f"""
                 <div class="stats-block" style="text-align: center; padding-top: 5px;">
-                    <p style="margin: 0px; font-size: 14px; color: gray;">Valeur Nette ($ CA)</p>
+                    <p style="margin: 0px; font-size: 14px; color: gray;">{titre_valeur}</p>
                     <p style="margin: 0px; font-size: 18px; font-weight: bold;">{valeur_formate}</p>
-                    <p style="margin: 0px; font-size: 11px; color: gray;">1 USD = {taux_usdcad:.3f} CAD</p>
+                    {texte_taux}
                 </div>
             """, unsafe_allow_html=True)
             
