@@ -13,61 +13,41 @@ st.set_page_config(page_title="Portefeuille BNC", layout="wide")
 # --- ASTUCE CSS : Optimisation totale de l'espace sur mobile ---
 st.markdown("""
     <style>
-        /* 1. ÉLIMINER TOTALEMENT L'EN-TÊTE STREAMLIT (en haut à droite) */
-        [data-testid="stHeader"] {
-            display: none !important;
-        }
-        #MainMenu {
-            display: none !important;
-        }
-        footer {
-            display: none !important;
-        }
-
-        /* 2. SUPPRIMER L'ESPACE VIDE GÉANT TOUT EN HAUT DE L'ÉCRAN */
-        .block-container {
-            padding-top: 1.5rem !important;
-            padding-bottom: 1rem !important;
-        }
-
-        /* 3. MASQUER LA BARRE D'OUTILS DES TABLEAUX (Loupe, Téléchargement) */
-        [data-testid="stElementToolbar"] {
-            display: none !important;
-        }
-
-        /* 4. Aligner Paramètres et Rafraîchir sur la même ligne */
+        /* ÉLIMINER TOTALEMENT L'EN-TÊTE STREAMLIT */
+        [data-testid="stHeader"], #MainMenu, footer { display: none !important; }
+        
+        /* SUPPRIMER L'ESPACE VIDE GÉANT TOUT EN HAUT */
+        .block-container { padding-top: 1.5rem !important; padding-bottom: 1rem !important; }
+        
+        /* MASQUER LA BARRE D'OUTILS DES TABLEAUX */
+        [data-testid="stElementToolbar"] { display: none !important; }
+        
+        /* ALIGNER PARAMÈTRES ET RAFRAÎCHIR */
         div[data-testid="stHorizontalBlock"]:has(div[data-testid="stPopover"]) {
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            gap: 10px !important;
+            flex-direction: row !important; flex-wrap: nowrap !important; gap: 10px !important;
         }
         div[data-testid="stHorizontalBlock"]:has(div[data-testid="stPopover"]) > div {
-            width: 50% !important;
-            min-width: 50% !important;
-            flex: none !important;
+            width: 50% !important; min-width: 50% !important; flex: none !important;
         }
-
-        /* 5. OPTIMISATION MOBILE : Blocs de statistiques */
+        
+        /* OPTIMISATION BLOCS STATISTIQUES */
         div[data-testid="stHorizontalBlock"]:has(div.stats-block) {
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            align-items: center !important;
-            gap: 2px !important; /* Écart réduit pour gagner de la place */
+            flex-direction: row !important; flex-wrap: nowrap !important; align-items: center !important; gap: 2px !important;
         }
-        /* Permettre aux colonnes de se rétrécir intelligemment sans forcer 33% */
-        div[data-testid="stHorizontalBlock"]:has(div.stats-block) > div {
-            min-width: 0 !important; 
-        }
-
-        /* 6. S'applique spécifiquement aux filtres numériques Min/Max des prospects */
+        div[data-testid="stHorizontalBlock"]:has(div.stats-block) > div { min-width: 0 !important; }
+        
+        /* FILTRES NUMÉRIQUES PROSPECTS */
         div[data-testid="stHorizontalBlock"]:has(div[data-testid="stNumberInput"]) {
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            gap: 15px !important;
+            flex-direction: row !important; flex-wrap: nowrap !important; gap: 15px !important;
         }
-        div[data-testid="stHorizontalBlock"]:has(div[data-testid="stNumberInput"]) > div {
-            min-width: 110px !important; 
+        div[data-testid="stHorizontalBlock"]:has(div[data-testid="stNumberInput"]) > div { min-width: 110px !important; }
+        
+        /* DESIGN DE LA BOÎTE D'ALERTES */
+        .alert-box {
+            background-color: rgba(255, 215, 0, 0.1); border-left: 4px solid #FFD700;
+            padding: 10px 15px; margin-bottom: 15px; border-radius: 4px; font-size: 14px;
         }
+        .alert-item { margin: 2px 0px; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -97,7 +77,6 @@ with col_param:
         
         st.markdown("---")
         st.markdown("**Affichage des Colonnes**")
-        # SEUL Var % EST ACTIVÉ PAR DÉFAUT
         afficher_no = st.checkbox("Afficher No.", value=False)
         afficher_var = st.checkbox("Afficher Var %", value=True)
         afficher_tendance = st.checkbox("Afficher Tendance (5j)", value=False)
@@ -109,6 +88,9 @@ with col_param:
         activer_taux_change = st.checkbox("Taux de change actif", value=False)
         afficher_gain_jour = st.checkbox("Calculer le Gain du Jour", value=False)
         afficher_bandeau = st.checkbox("Afficher le Bandeau des Marchés", value=False)
+        
+        # --- NOUVEAU : Case à cocher pour les Alertes ---
+        afficher_alertes = st.checkbox("Activer les Alertes Intelligentes", value=False)
         
 with col_btn:
     if st.button(f"🔄 Rafraîchir ({heure_actuelle})", use_container_width=True):
@@ -159,6 +141,7 @@ def construire_donnees(df, dict_yahoo, est_portefeuille=True, symboles_portefeui
     df['Chaleur 52s'] = np.nan 
     df['Div %'] = np.nan
     df['Gain Jour $'] = 0.0
+    df['Symbole Brut'] = "" # Sauvegarde du texte brut pour les alertes
     tendances = []
     
     if 'Pré 1an $' in df.columns and not est_portefeuille:
@@ -168,6 +151,7 @@ def construire_donnees(df, dict_yahoo, est_portefeuille=True, symboles_portefeui
         symbole = row.get('Symbole')
         if pd.notna(symbole):
             symbole_clean = str(symbole).strip()
+            df.at[index, 'Symbole Brut'] = symbole_clean
             
             if symbole_clean.endswith('.TO') or '.V' in symbole_clean or '.NE' in symbole_clean:
                 df.at[index, 'Devise'] = 'CAD'
@@ -296,7 +280,7 @@ try:
     else:
         df_portefeuille_actif = df_base_portefeuille.copy()
 
-    # MOTEUR TURBO : Extraction et ajout des indices de marché globaux
+    # MOTEUR TURBO : Extraction et ajout des symboles
     tous_les_symboles = set()
     for df_temp in [df_portefeuille_actif, df_base_prospects]:
         if 'Symbole' in df_temp.columns:
@@ -306,7 +290,22 @@ try:
     with st.spinner("Mode Turbo : Chargement des marchés mondiaux..."):
         yahoo_data = telecharger_tous_les_prix_yahoo(list(tous_les_symboles))
 
-    # BANDEAU DES MARCHÉS EN DIRECT
+    symboles_possedes = tuple(set(df_portefeuille_actif['Symbole'].dropna().astype(str).str.strip()))
+
+    # --- TRAITEMENT GLOBAL DES DONNÉES (Pour permettre les Alertes avant les onglets) ---
+    # 1. Portefeuille
+    df_live = construire_donnees(df_portefeuille_actif, yahoo_data, est_portefeuille=True)
+    df_live = calculer_potentiel_gain(df_live, source_gain, est_portefeuille=True)
+    for col in ["Pré G %", "Gain %", "Var %"]:
+        if col in df_live.columns: df_live[col] = pd.to_numeric(df_live[col], errors='coerce') * 100
+
+    # 2. Prospects
+    df_live_prospects = construire_donnees(df_base_prospects, yahoo_data, est_portefeuille=False, symboles_portefeuille=symboles_possedes)
+    df_live_prospects = calculer_potentiel_gain(df_live_prospects, source_gain, est_portefeuille=False)
+    for col in ["Pré G %", "Var %"]:
+        if col in df_live_prospects.columns: df_live_prospects[col] = pd.to_numeric(df_live_prospects[col], errors='coerce') * 100
+
+    # --- BANDEAU DES MARCHÉS EN DIRECT ---
     if afficher_bandeau:
         indices_marches = {"S&P 500": "^GSPC", "NASDAQ": "^IXIC", "TSX": "^GSPTSE"}
         cols_m = st.columns(3)
@@ -319,11 +318,40 @@ try:
                 m_signe = "+" if m_var > 0 else ""
                 m_couleur = "#00cc00" if m_var > 0 else "#ff4d4d"
                 cols_m[idx].markdown(f"**{nom_m}** : {m_actuel:,.2f} (<span style='color:{m_couleur}'>{m_signe}{m_var:.2f}%</span>)", unsafe_allow_html=True)
-        st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
 
-    symboles_possedes = tuple(set(df_portefeuille_actif['Symbole'].dropna().astype(str).str.strip()))
-
-    tab1, tab2, tab3 = st.tabs(["💰 Portefeuille", "🎯 Pros CAD", "🎯 Pros US"])
+    # --- NOUVEAU : MODULE D'ALERTES INTELLIGENTES ---
+    if afficher_alertes:
+        alertes_generees = []
+        
+        # Scan du Portefeuille
+        if not df_live.empty:
+            for _, row in df_live.iterrows():
+                sym = row.get('Symbole Brut', 'Action')
+                # Alerte Prix Cible
+                if pd.notna(row.get('Pré G %')) and row['Pré G %'] <= 0:
+                    alertes_generees.append(f"🎯 **{sym}** a atteint son objectif de prix !")
+                # Alerte Volatilité
+                if pd.notna(row.get('Var %')):
+                    if row['Var %'] >= 5.0:
+                        alertes_generees.append(f"🚀 **{sym}** s'envole aujourd'hui (+{row['Var %']:.1f}%)")
+                    elif row['Var %'] <= -5.0:
+                        alertes_generees.append(f"🔻 **{sym}** chute fortement ({row['Var %']:.1f}%)")
+                        
+        # Scan des Prospects
+        if not df_live_prospects.empty:
+            for _, row in df_live_prospects.iterrows():
+                sym = row.get('Symbole Brut', 'Action')
+                if pd.notna(row.get('Chaleur 52s')) and row['Chaleur 52s'] <= 5.0:
+                    alertes_generees.append(f"🔥 **{sym}** (Prospect) est à son plus bas sur 1 an !")
+        
+        # Affichage des alertes
+        if alertes_generees:
+            html_alertes = "<div class='alert-box'><strong>🚨 Alertes Actives :</strong><br>"
+            for alerte in alertes_generees:
+                html_alertes += f"<p class='alert-item'>{alerte}</p>"
+            html_alertes += "</div>"
+            st.markdown(html_alertes, unsafe_allow_html=True)
 
     # --- ARCHITECTURE DYNAMIQUE DES COLONNES ---
     colonnes_base_port = []
@@ -342,16 +370,10 @@ try:
     if afficher_div: colonnes_base_pros.append("Div %")
     colonnes_base_pros.extend(["Pré 1an $ Display", "Pré 1an $ Aff Display", "Pré G %"])
 
+    tab1, tab2, tab3 = st.tabs(["💰 Portefeuille", "🎯 Pros CAD", "🎯 Pros US"])
+
     # --- ONGLET 1 : PORTEFEUILLE ---
     with tab1:
-        df_live = construire_donnees(df_portefeuille_actif, yahoo_data, est_portefeuille=True)
-        df_live = calculer_potentiel_gain(df_live, source_gain, est_portefeuille=True)
-
-        for col in ["Pré G %", "Gain %", "Var %"]:
-            if col in df_live.columns:
-                df_live[col] = pd.to_numeric(df_live[col], errors='coerce') * 100
-
-        # CALCULS FINANCIERS AVANCÉS ET DYNAMIQUES
         if 'Prix $' in df_live.columns and 'Qtée' in df_live.columns:
             valeurs_brutes = df_live['Prix $'] * df_live['Qtée']
             gains_bruts = df_live['Gain $']
@@ -387,15 +409,12 @@ try:
         gain_j_formate = f"{gain_jour_total_net:,.2f} {symbole_devise}".replace(',', ' ')
         valeur_formate = f"{valeur_totale_nette:,.2f} {symbole_devise}".replace(',', ' ')
 
-        # --- OPTIMISATION CELLULAIRE : Largeurs asymétriques pour le bloc statistiques ---
+        # --- OPTIMISATION CELLULAIRE BLOC STATS ---
         if afficher_gain_jour:
-            # 4 éléments : on donne plus de place aux chiffres, moins au sélecteur
             cols_s = st.columns([2.5, 2.5, 2.5, 1.8])
         else:
-            # 3 éléments : on comprime le sélecteur à droite
             cols_s = st.columns([3, 3, 2])
         
-        # Police réduite à 16px pour éviter les retours à la ligne sur mobile
         with cols_s[0]:
             st.markdown(f"<div class='stats-block' style='text-align: left; padding-top: 5px;'><p style='margin: 0px; font-size: 13px; color: gray;'>{titre_gain}</p><p style='margin: 0px; font-size: 16px; font-weight: bold;'>{gain_formate}</p></div>", unsafe_allow_html=True)
             
@@ -405,7 +424,6 @@ try:
             with cols_s[1]:
                 st.markdown(f"<div class='stats-block' style='text-align: center; padding-top: 5px;'><p style='margin: 0px; font-size: 13px; color: gray;'>{titre_gain_j}</p><p style='margin: 0px; font-size: 16px; font-weight: bold; color: {color_j};'>{signe_j}{gain_j_formate}</p></div>", unsafe_allow_html=True)
             
-        # Index de la colonne Valeur et Tri dépendent du nombre d'éléments
         idx_val = 2 if afficher_gain_jour else 1
         idx_tri = 3 if afficher_gain_jour else 2
             
@@ -446,14 +464,6 @@ try:
                 "Date Achat": st.column_config.DatetimeColumn(format="YYYY-MM-DD")
             }
         )
-
-    # --- TRAITEMENT CENTRALISÉ DES PROSPECTS ---
-    df_live_prospects = construire_donnees(df_base_prospects, yahoo_data, est_portefeuille=False, symboles_portefeuille=symboles_possedes)
-    df_live_prospects = calculer_potentiel_gain(df_live_prospects, source_gain, est_portefeuille=False)
-
-    for col in ["Pré G %", "Var %"]:
-        if col in df_live_prospects.columns:
-            df_live_prospects[col] = pd.to_numeric(df_live_prospects[col], errors='coerce') * 100
 
     # --- ONGLET 2 : PROSPECTS CAD ---
     with tab2:
