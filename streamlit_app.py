@@ -47,17 +47,12 @@ st.markdown("""
             flex: none !important;
         }
 
-        /* 5. Aligner Gain, Valeur Totale et Tri sur la même ligne dans l'onglet Portefeuille */
+        /* 5. Aligner les blocs de statistiques sur la même ligne */
         div[data-testid="stHorizontalBlock"]:has(div.stats-block) {
             flex-direction: row !important;
             flex-wrap: nowrap !important;
             align-items: center !important;
             gap: 5px !important;
-        }
-        div[data-testid="stHorizontalBlock"]:has(div.stats-block) > div {
-            width: 33.33% !important;
-            min-width: 33.33% !important;
-            flex: none !important;
         }
 
         /* 6. S'applique spécifiquement aux filtres numériques Min/Max des prospects */
@@ -94,19 +89,21 @@ col_param, col_btn = st.columns(2)
 
 with col_param:
     with st.popover("⚙️ Paramètres", use_container_width=True):
-        # Index=2 sélectionne "Moyenne" par défaut (0=Yahoo, 1=Affaires, 2=Moyenne)
         source_gain = st.selectbox("Calcul du Gain", ["Yahoo", "Affaires", "Moyenne"], index=2)
         
         st.markdown("---")
-        st.markdown("**Affichage**")
-        
+        st.markdown("**Affichage des Colonnes**")
         afficher_no = st.checkbox("Afficher No.", value=True)
         afficher_var = st.checkbox("Afficher Var %", value=True)
         afficher_tendance = st.checkbox("Afficher Tendance (5j)", value=True)
         afficher_chaleur = st.checkbox("Afficher Chaleur 52 sem.", value=True)
+        afficher_div = st.checkbox("Afficher Dividendes (Div %)", value=True)
         
-        # --- NOUVEAU : Case à cocher pour le Taux de change ---
+        st.markdown("---")
+        st.markdown("**Fonctionnalités Avancées**")
         activer_taux_change = st.checkbox("Taux de change actif", value=True)
+        afficher_gain_jour = st.checkbox("Calculer le Gain du Jour", value=True)
+        afficher_bandeau = st.checkbox("Afficher le Bandeau des Marchés", value=True)
         
 with col_btn:
     if st.button(f"🔄 Rafraîchir ({heure_actuelle})", use_container_width=True):
@@ -155,6 +152,8 @@ def construire_donnees(df, dict_yahoo, est_portefeuille=True, symboles_portefeui
     df['Possede'] = False  
     df['Pré 1an $ Yahoo'] = np.nan
     df['Chaleur 52s'] = np.nan 
+    df['Div %'] = np.nan
+    df['Gain Jour $'] = 0.0
     tendances = []
     
     if 'Pré 1an $' in df.columns and not est_portefeuille:
@@ -193,12 +192,18 @@ def construire_donnees(df, dict_yahoo, est_portefeuille=True, symboles_portefeui
                     qte = row['Qtée']
                     df.at[index, 'Gain %'] = (prix_actuel - achat) / achat
                     df.at[index, 'Gain $'] = (prix_actuel - achat) * qte
+                    df.at[index, 'Gain Jour $'] = (prix_actuel - prix_veille) * qte
             else:
                 tendances.append(None)
             
             prevision_1an = infos_gen.get('targetMeanPrice')
             if prevision_1an is not None:
                 df.at[index, 'Pré 1an $ Yahoo'] = prevision_1an
+                
+            # Extraction du rendement des dividendes
+            div_yield = infos_gen.get('dividendYield')
+            if div_yield is not None:
+                df.at[index, 'Div %'] = div_yield * 100
                 
             low_52 = infos_gen.get('fiftyTwoWeekLow')
             high_52 = infos_gen.get('fiftyTwoWeekHigh')
@@ -287,44 +292,50 @@ try:
     else:
         df_portefeuille_actif = df_base_portefeuille.copy()
 
+    # MOTEUR TURBO : Extraction et ajout des indices de marché globaux
     tous_les_symboles = set()
     for df_temp in [df_portefeuille_actif, df_base_prospects]:
         if 'Symbole' in df_temp.columns:
             tous_les_symboles.update([str(s).strip() for s in df_temp['Symbole'].dropna() if pd.notna(s)])
+    tous_les_symboles.update(["^GSPC", "^IXIC", "^GSPTSE"])
 
     with st.spinner("Mode Turbo : Chargement des marchés mondiaux..."):
         yahoo_data = telecharger_tous_les_prix_yahoo(list(tous_les_symboles))
+
+    # BANDEAU DES MARCHÉS EN DIRECT
+    if afficher_bandeau:
+        indices_marches = {"S&P 500": "^GSPC", "NASDAQ": "^IXIC", "TSX": "^GSPTSE"}
+        cols_m = st.columns(3)
+        for idx, (nom_m, sym_m) in enumerate(indices_marches.items()):
+            m_data = yahoo_data.get(sym_m, {}).get('hist', pd.DataFrame())
+            if not m_data.empty and len(m_data) >= 2:
+                m_actuel = m_data['Close'].iloc[-1]
+                m_veille = m_data['Close'].iloc[-2]
+                m_var = (m_actuel - m_veille) / m_veille * 100
+                m_signe = "+" if m_var > 0 else ""
+                m_couleur = "#00cc00" if m_var > 0 else "#ff4d4d"
+                cols_m[idx].markdown(f"**{nom_m}** : {m_actuel:,.2f} (<span style='color:{m_couleur}'>{m_signe}{m_var:.2f}%</span>)", unsafe_allow_html=True)
+        st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
 
     symboles_possedes = tuple(set(df_portefeuille_actif['Symbole'].dropna().astype(str).str.strip()))
 
     tab1, tab2, tab3 = st.tabs(["💰 Portefeuille", "🎯 Pros CAD", "🎯 Pros US"])
 
-    # --- LISTE DYNAMIQUE DES COLONNES POUR L'ONGLET PORTEFEUILLE ---
+    # --- ARCHITECTURE DYNAMIQUE DES COLONNES ---
     colonnes_base_port = []
-    if afficher_no:
-        colonnes_base_port.append("No.")
-    
+    if afficher_no: colonnes_base_port.append("No.")
     colonnes_base_port.extend(["Symbole", "Prix $"])
-    
-    if afficher_var:
-        colonnes_base_port.append("Var %")
-    if afficher_tendance:
-        colonnes_base_port.append("Tendance")
-    if afficher_chaleur:
-        colonnes_base_port.append("Chaleur 52s")
-        
+    if afficher_var: colonnes_base_port.append("Var %")
+    if afficher_tendance: colonnes_base_port.append("Tendance")
+    if afficher_chaleur: colonnes_base_port.append("Chaleur 52s")
+    if afficher_div: colonnes_base_port.append("Div %")
     colonnes_base_port.extend(["Pré 1an $ Display", "Pré 1an $ Aff Display", "Pré G %", "Achat $", "Qtée", "Gain %", "Gain $", "Date Achat"])
 
-    # --- LISTE DYNAMIQUE DES COLONNES POUR LES ONGLETS PROSPECTS ---
     colonnes_base_pros = ["Symbole", "Prix $"]
-    
-    if afficher_var:
-        colonnes_base_pros.append("Var %")
-    if afficher_tendance:
-        colonnes_base_pros.append("Tendance")
-    if afficher_chaleur:
-        colonnes_base_pros.append("Chaleur 52s")
-        
+    if afficher_var: colonnes_base_pros.append("Var %")
+    if afficher_tendance: colonnes_base_pros.append("Tendance")
+    if afficher_chaleur: colonnes_base_pros.append("Chaleur 52s")
+    if afficher_div: colonnes_base_pros.append("Div %")
     colonnes_base_pros.extend(["Pré 1an $ Display", "Pré 1an $ Aff Display", "Pré G %"])
 
     # --- ONGLET 1 : PORTEFEUILLE ---
@@ -336,58 +347,59 @@ try:
             if col in df_live.columns:
                 df_live[col] = pd.to_numeric(df_live[col], errors='coerce') * 100
 
-        # --- LOGIQUE DYNAMIQUE POUR LE TAUX DE CHANGE ---
+        # CALCULS FINANCIERS AVANCÉS ET DYNAMIQUES
         if 'Prix $' in df_live.columns and 'Qtée' in df_live.columns:
             valeurs_brutes = df_live['Prix $'] * df_live['Qtée']
             gains_bruts = df_live['Gain $']
+            gains_jour_bruts = df_live['Gain Jour $']
             
             if activer_taux_change:
                 valeurs_converties = np.where(df_live['Devise'] == 'USD', valeurs_brutes * taux_usdcad, valeurs_brutes)
                 gains_convertis = np.where(df_live['Devise'] == 'USD', gains_bruts * taux_usdcad, gains_bruts)
+                gains_jour_convertis = np.where(df_live['Devise'] == 'USD', gains_jour_bruts * taux_usdcad, gains_jour_bruts)
                 titre_gain = "Gain net ($ CA)"
+                titre_gain_j = "Gain du Jour ($ CA)"
                 titre_valeur = "Valeur Nette ($ CA)"
                 symbole_devise = "$ CA"
                 texte_taux = f"<p style='margin: 0px; font-size: 11px; color: gray;'>1 USD = {taux_usdcad:.3f} CAD</p>"
             else:
                 valeurs_converties = valeurs_brutes
                 gains_convertis = gains_bruts
+                gains_jour_convertis = gains_jour_bruts
                 titre_gain = "Gain total"
-                titre_valeur = "Valeur totale"
+                titre_gain_j = "Gain du jour"
                 symbole_devise = "$"
+                titre_valeur = "Valeur totale"
                 texte_taux = ""
             
             valeur_totale_nette = valeurs_converties.sum()
             gain_total_net = gains_convertis.sum()
+            gain_jour_total_net = gains_jour_convertis.sum()
         else:
-            valeur_totale_nette = 0
-            gain_total_net = 0
-            titre_gain = "Gain total"
-            titre_valeur = "Valeur totale"
-            symbole_devise = "$"
-            texte_taux = ""
+            valeur_totale_nette = gain_total_net = gain_jour_total_net = 0
+            titre_gain = "Gain total"; titre_gain_j = "Gain du jour"; titre_valeur = "Valeur totale"; symbole_devise = "$"; texte_taux = ""
 
         gain_formate = f"{gain_total_net:,.2f} {symbole_devise}".replace(',', ' ')
+        gain_j_formate = f"{gain_jour_total_net:,.2f} {symbole_devise}".replace(',', ' ')
         valeur_formate = f"{valeur_totale_nette:,.2f} {symbole_devise}".replace(',', ' ')
 
-        col_gain, col_val, col_tri = st.columns(3)
-        with col_gain:
-            st.markdown(f"""
-                <div class="stats-block" style="text-align: left; padding-top: 5px;">
-                    <p style="margin: 0px; font-size: 14px; color: gray;">{titre_gain}</p>
-                    <p style="margin: 0px; font-size: 18px; font-weight: bold;">{gain_formate}</p>
-                </div>
-            """, unsafe_allow_html=True)
+        # AFFICHAGE ADAPTATIF DES METRICS (3 OU 4 COLONNES)
+        nombre_colonnes = 4 if afficher_gain_jour else 3
+        cols_s = st.columns(nombre_colonnes)
+        
+        with cols_s[0]:
+            st.markdown(f"<div class='stats-block' style='text-align: left; padding-top: 5px;'><p style='margin: 0px; font-size: 14px; color: gray;'>{titre_gain}</p><p style='margin: 0px; font-size: 18px; font-weight: bold;'>{gain_formate}</p></div>", unsafe_allow_html=True)
             
-        with col_val:
-            st.markdown(f"""
-                <div class="stats-block" style="text-align: center; padding-top: 5px;">
-                    <p style="margin: 0px; font-size: 14px; color: gray;">{titre_valeur}</p>
-                    <p style="margin: 0px; font-size: 18px; font-weight: bold;">{valeur_formate}</p>
-                    {texte_taux}
-                </div>
-            """, unsafe_allow_html=True)
+        if afficher_gain_jour:
+            color_j = "#00cc00" if gain_jour_total_net >= 0 else "#ff4d4d"
+            signe_j = "+" if gain_jour_total_net > 0 else ""
+            with cols_s[1]:
+                st.markdown(f"<div class='stats-block' style='text-align: center; padding-top: 5px;'><p style='margin: 0px; font-size: 14px; color: gray;'>{titre_gain_j}</p><p style='margin: 0px; font-size: 18px; font-weight: bold; color: {color_j};'>{signe_j}{gain_j_formate}</p></div>", unsafe_allow_html=True)
             
-        with col_tri:
+        with cols_s[nombre_colonnes-2]:
+            st.markdown(f"<div class='stats-block' style='text-align: center; padding-top: 5px;'><p style='margin: 0px; font-size: 14px; color: gray;'>{titre_valeur}</p><p style='margin: 0px; font-size: 18px; font-weight: bold;'>{valeur_formate}</p>{texte_taux}</div>", unsafe_allow_html=True)
+            
+        with cols_s[nombre_colonnes-1]:
             colonne_tri = st.selectbox("Tri", ["Pré G %", "Gain %"], key="tri_portefeuille", label_visibility="collapsed")
 
         if colonne_tri == "Pré G %":
@@ -395,7 +407,7 @@ try:
         elif colonne_tri == "Gain %":
             df_live = df_live.sort_values(by="Gain %", ascending=False) 
 
-        df_stylise = df_live.style.map(couleur_alerte_vente, subset=['Pré G %']).map(couleur_var, subset=['Var %'])
+        df_stylise = df_live.style.map(couleur_alerte_vente, subset=['Pré G %']).map(couleur_var, subset=['Var %'] if afficher_var else [])
         hauteur_dynamique = (len(df_live) * 35) + 43
 
         st.dataframe(
@@ -403,7 +415,7 @@ try:
             use_container_width=True,
             hide_index=True,
             height=hauteur_dynamique,
-            column_order=colonnes_base_port, # Utilisation de la liste dynamique
+            column_order=colonnes_base_port,
             column_config={
                 "No.": st.column_config.NumberColumn("No.", format="%d"),
                 "Symbole": st.column_config.LinkColumn("Symbole", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)"),
@@ -412,6 +424,7 @@ try:
                 "Var %": st.column_config.NumberColumn(format="%.1f %%"),
                 "Tendance": st.column_config.LineChartColumn("Tendance (5j)"), 
                 "Chaleur 52s": st.column_config.ProgressColumn("♨️ 52 sem.", format="%.0f %%", min_value=0, max_value=100),
+                "Div %": st.column_config.NumberColumn("Div %", format="%.2f %%"),
                 "Pré 1an $ Display": st.column_config.NumberColumn("Pré YF", format="$ %.2f"),
                 "Pré 1an $ Aff Display": st.column_config.NumberColumn("Pré Aff", format="$ %.2f"),
                 "Achat $": st.column_config.NumberColumn(format="$ %.2f"),
@@ -448,20 +461,21 @@ try:
             df_prospects_cad = df_prospects_cad.sort_values(by="Pré G %", ascending=False)
 
         hauteur_cad = (len(df_prospects_cad) * 35) + 43 if len(df_prospects_cad) > 0 else 100
-        df_cad_stylise = df_prospects_cad.style.apply(surligner_prospects, axis=1).map(couleur_var, subset=['Var %'])
+        df_cad_stylise = df_prospects_cad.style.apply(surligner_prospects, axis=1).map(couleur_var, subset=['Var %'] if afficher_var else [])
 
         st.dataframe(
             df_cad_stylise,
             use_container_width=True,
             hide_index=True,
             height=hauteur_cad,
-            column_order=colonnes_base_pros, # Utilisation de la liste dynamique
+            column_order=colonnes_base_pros,
             column_config={
                 "Symbole": st.column_config.LinkColumn("Symbole", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)"),
                 "Prix $": st.column_config.NumberColumn("Prix $", format="$ %.2f"),
                 "Var %": st.column_config.NumberColumn("Var %", format="%.1f %%"),
                 "Tendance": st.column_config.LineChartColumn("Tendance (5j)"),
                 "Chaleur 52s": st.column_config.ProgressColumn("♨️ 52 sem.", format="%.0f %%", min_value=0, max_value=100),
+                "Div %": st.column_config.NumberColumn("Div %", format="%.2f %%"),
                 "Pré 1an $ Display": st.column_config.NumberColumn("Pré YF", format="$ %.2f"),
                 "Pré 1an $ Aff Display": st.column_config.NumberColumn("Pré Aff", format="$ %.2f"),
                 "Pré G %": st.column_config.NumberColumn("Pré G %", format="%.1f %%")
@@ -487,20 +501,21 @@ try:
             df_prospects_usd = df_prospects_usd.sort_values(by="Pré G %", ascending=False)
 
         hauteur_usd = (len(df_prospects_usd) * 35) + 43 if len(df_prospects_usd) > 0 else 100
-        df_usd_stylise = df_prospects_usd.style.apply(surligner_prospects, axis=1).map(couleur_var, subset=['Var %'])
+        df_usd_stylise = df_prospects_usd.style.apply(surligner_prospects, axis=1).map(couleur_var, subset=['Var %'] if afficher_var else [])
 
         st.dataframe(
             df_usd_stylise,
             use_container_width=True,
             hide_index=True,
             height=hauteur_usd,
-            column_order=colonnes_base_pros, # Utilisation de la liste dynamique
+            column_order=colonnes_base_pros,
             column_config={
                 "Symbole": st.column_config.LinkColumn("Symbole", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)"),
                 "Prix $": st.column_config.NumberColumn("Prix $", format="$ %.2f"),
                 "Var %": st.column_config.NumberColumn("Var %", format="%.1f %%"),
                 "Tendance": st.column_config.LineChartColumn("Tendance (5j)"),
                 "Chaleur 52s": st.column_config.ProgressColumn("♨️ 52 sem.", format="%.0f %%", min_value=0, max_value=100),
+                "Div %": st.column_config.NumberColumn("Div %", format="%.2f %%"),
                 "Pré 1an $ Display": st.column_config.NumberColumn("Pré YF", format="$ %.2f"),
                 "Pré 1an $ Aff Display": st.column_config.NumberColumn("Pré Aff", format="$ %.2f"),
                 "Pré G %": st.column_config.NumberColumn("Pré G %", format="%.1f %%")
