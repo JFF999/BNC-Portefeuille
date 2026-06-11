@@ -46,11 +46,13 @@ def heure_mise_a_jour():
     return datetime.now(ZoneInfo("America/Toronto")).strftime("%H:%M")
 
 # --- TITRE PRINCIPAL ---
-st.title("📈 BNC LIVE")
-
-# --- MODIFICATION : Bouton paramètres placé idéalement SOUS le titre ---
-with st.popover("⚙️ Paramètres"):
-    source_gain = st.selectbox("Calcul du Gain", ["Yahoo", "Affaires", "Moyenne"])
+col_title, col_params = st.columns([8, 2])
+with col_title:
+    st.title("📈 BNC LIVE")
+with col_params:
+    st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
+    with st.popover("⚙️"):
+        source_gain = st.selectbox("Calcul du Gain", ["Yahoo", "Affaires", "Moyenne"])
 
 heure_actuelle = heure_mise_a_jour()
 
@@ -75,7 +77,7 @@ def charger_donnees_base(nom_feuille):
     reponse.raise_for_status() 
     df = pd.read_excel(io.BytesIO(reponse.content), sheet_name=nom_feuille, engine='openpyxl')
     
-    # Nettoyage robuste des sauts de ligne Excel (Alt+Enter) dans les entêtes
+    # Nettoyage robuste des sauts de ligne Excel
     df.columns = [str(c).replace('\n', ' ').replace('\r', '') for c in df.columns]
     df.columns = [' '.join(c.split()) for c in df.columns] 
     return df
@@ -139,7 +141,6 @@ def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
                 pass
     return df
 
-# --- LOGIQUE DE CALCUL INTELLIGENTE ET SÉCURISÉE ---
 def calculer_potentiel_gain(df, source, est_portefeuille=True):
     df = df.copy()
     if 'Prix $' not in df.columns:
@@ -244,9 +245,9 @@ try:
                 "Pré G %": st.column_config.NumberColumn(format="%.1f %%"),
                 "Prix $": st.column_config.NumberColumn(format="$ %.2f"),
                 
-                # OPTIMISATION DE LARGEUR : Saut de ligne visuel \n
-                "Pré 1an $ Display": st.column_config.NumberColumn("Pré 1an $\nYahoo", format="$ %.2f"),
-                "Pré 1an $ Aff Display": st.column_config.NumberColumn("Pré 1an $\nAffaires", format="$ %.2f"),
+                # TITRES ULTRA-COMPACTS
+                "Pré 1an $ Display": st.column_config.NumberColumn("Pré YF", format="$ %.2f"),
+                "Pré 1an $ Aff Display": st.column_config.NumberColumn("Pré Aff", format="$ %.2f"),
                 
                 "Achat $": st.column_config.NumberColumn(format="$ %.2f"),
                 "Gain %": st.column_config.NumberColumn(format="%.1f %%"),
@@ -300,15 +301,15 @@ try:
                 "Prix $": st.column_config.NumberColumn("Prix $", format="$ %.2f"),
                 "Var %": st.column_config.NumberColumn("Var %", format="%.1f %%"),
                 
-                # OPTIMISATION DE LARGEUR : Saut de ligne visuel \n
-                "Pré 1an $ Display": st.column_config.NumberColumn("Pré 1an $\nYahoo", format="$ %.2f"),
-                "Pré 1an $ Aff Display": st.column_config.NumberColumn("Pré 1an $\nAffaires", format="$ %.2f"),
+                # TITRES ULTRA-COMPACTS
+                "Pré 1an $ Display": st.column_config.NumberColumn("Pré YF", format="$ %.2f"),
+                "Pré 1an $ Aff Display": st.column_config.NumberColumn("Pré Aff", format="$ %.2f"),
                 
                 "Pré G %": st.column_config.NumberColumn("Pré G %", format="%.1f %%")
             }
         )
 
-    # --- ONGLET 3 : PROSPECTS US ---
+    # --- ONGLET 3 : PROSPEcripts US ---
     with tab3:
         col_min_us, col_max_us, col_vide_us = st.columns([1, 1, 2])
         with col_min_us:
@@ -339,9 +340,9 @@ try:
                 "Prix $": st.column_config.NumberColumn("Prix $", format="$ %.2f"),
                 "Var %": st.column_config.NumberColumn("Var %", format="%.1f %%"),
                 
-                # OPTIMISATION DE LARGEUR : Saut de ligne visuel \n
-                "Pré 1an $ Display": st.column_config.NumberColumn("Pré 1an $\nYahoo", format="$ %.2f"),
-                "Pré 1an $ Aff Display": st.column_config.NumberColumn("Pré 1an $\nAffaires", format="$ %.2f"),
+                # TITRES ULTRA-COMPACTS
+                "Pré 1an $ Display": st.column_config.NumberColumn("Pré YF", format="$ %.2f"),
+                "Pré 1an $ Aff Display": st.column_config.NumberColumn("Pré Aff", format="$ %.2f"),
                 
                 "Pré G %": st.column_config.NumberColumn("Pré G %", format="%.1f %%")
             }
