@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 
 st.set_page_config(page_title="Portefeuille BNC", layout="wide")
 
-# --- ASTUCE CSS : Forcer les proportions exactes sur mobile ---
+# --- ASTUCE CSS : Optimisation totale de l'espace sur mobile ---
 st.markdown("""
     <style>
         /* 1. Aligner Paramètres et Rafraîchir sur la même ligne */
@@ -91,10 +91,6 @@ def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
     df = df.copy() 
     df['Devise'] = 'USD'  
     df['Possede'] = False  
-    
-    if 'Pré 1an $' in df.columns and not est_portefeuille:
-        df = df.rename(columns={'Pré 1an $': 'Pré 1an $ Fichier'})
-        
     df['Pré 1an $ Yahoo'] = np.nan
     
     for index, row in df.iterrows():
@@ -145,20 +141,24 @@ def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
                 pass
     return df
 
-def calculer_potentiel_gain(df, source, est_portefeuille=True):
+def calculer_potentiel_gain(df, source):
     df = df.copy()
     if 'Prix $' not in df.columns:
         return df
         
     prix = pd.to_numeric(df['Prix $'], errors='coerce')
-    yahoo = pd.to_numeric(df['Pré 1an $ Yahoo'], errors='coerce')
+    yahoo_live = pd.to_numeric(df.get('Pré 1an $ Yahoo', np.nan), errors='coerce')
+    yahoo_base = pd.to_numeric(df.get('Pré 1an $', np.nan), errors='coerce')
     
-    if est_portefeuille:
-        affaires = pd.to_numeric(df.get('Pré 1an $ Affaires', np.nan), errors='coerce').replace(0, np.nan)
-        yahoo_base = pd.to_numeric(df.get('Pré 1an $', np.nan), errors='coerce')
-        yahoo = yahoo.fillna(yahoo_base)
+    # Secours Yahoo : Si Yahoo ne renvoie rien en direct, on utilise la cible Excel de base
+    yahoo = yahoo_live.fillna(yahoo_base)
+    
+    # CORRECTION ICI : Recherche dynamique de la colonne Affaires dans Portefeuille ET Prospects
+    col_affaires = next((c for c in df.columns if 'Aff' in str(c)), None)
+    if col_affaires:
+        affaires = pd.to_numeric(df[col_affaires], errors='coerce').replace(0, np.nan)
     else:
-        affaires = pd.to_numeric(df.get('Pré 1an $ Fichier', np.nan), errors='coerce').replace(0, np.nan)
+        affaires = pd.Series(np.nan, index=df.index)
     
     if source == "Yahoo":
         cible = yahoo.fillna(affaires)
@@ -171,6 +171,7 @@ def calculer_potentiel_gain(df, source, est_portefeuille=True):
     mask = (prix > 0) & cible.notna()
     df.loc[mask, 'Pré G %'] = (cible[mask] - prix[mask]) / prix[mask]
     
+    # On crée ces colonnes propres pour l'affichage final
     df['Pré 1an $ Display'] = yahoo
     df['Pré 1an $ Aff Display'] = affaires
         
@@ -193,20 +194,19 @@ try:
     # --- ONGLET 1 : PORTEFEUILLE ---
     with tab1:
         df_live = mise_a_jour_prix(df_portefeuille_actif, est_portefeuille=True)
-        df_live = calculer_potentiel_gain(df_live, source_gain, est_portefeuille=True)
+        df_live = calculer_potentiel_gain(df_live, source_gain)
 
         for col in ["Pré G %", "Gain %", "Var %"]:
             if col in df_live.columns:
                 df_live[col] = pd.to_numeric(df_live[col], errors='coerce') * 100
 
-        # Calcul des totaux
         valeur_totale = (df_live['Prix $'] * df_live['Qtée']).sum()
         gain_total = df_live['Gain $'].sum()
 
         gain_formate = f"{gain_total:,.2f} $".replace(',', ' ')
         valeur_formate = f"{valeur_totale:,.2f} $".replace(',', ' ')
 
-        # --- NOUVEAU : Affichage compact (Gain, Valeur, Tri) sur la même ligne ---
+        # --- NOUVEAU : Affichage ultra compact (Gain, Valeur, Tri) sur la même ligne ---
         col_gain, col_val, col_tri = st.columns(3)
         with col_gain:
             st.markdown(f"""
@@ -225,10 +225,9 @@ try:
             """, unsafe_allow_html=True)
             
         with col_tri:
-            # Le Tri est maintenant ici, juste à côté de "Valeur totale"
             colonne_tri = st.selectbox("Tri", ["Pré G %", "Gain %"], key="tri_portefeuille")
 
-        # Application du tri juste avant l'affichage du tableau
+        # Application du tri
         if colonne_tri == "Pré G %":
             df_live = df_live.sort_values(by="Pré G %", ascending=True) 
         elif colonne_tri == "Gain %":
@@ -259,6 +258,7 @@ try:
                 "Pré G %": st.column_config.NumberColumn(format="%.1f %%"),
                 "Prix $": st.column_config.NumberColumn(format="$ %.2f"),
                 
+                # TITRES ULTRA COMPACTS
                 "Pré 1an $ Display": st.column_config.NumberColumn("Pré YF", format="$ %.2f"),
                 "Pré 1an $ Aff Display": st.column_config.NumberColumn("Pré Aff", format="$ %.2f"),
                 
@@ -272,7 +272,7 @@ try:
 
     # --- TRAITEMENT CENTRALISÉ DES PROSPECTS ---
     df_live_prospects = mise_a_jour_prix(df_base_prospects, est_portefeuille=False, symboles_portefeuille=symboles_possedes)
-    df_live_prospects = calculer_potentiel_gain(df_live_prospects, source_gain, est_portefeuille=False)
+    df_live_prospects = calculer_potentiel_gain(df_live_prospects, source_gain)
 
     for col in ["Pré G %", "Var %"]:
         if col in df_live_prospects.columns:
