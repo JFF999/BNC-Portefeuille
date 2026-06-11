@@ -47,12 +47,16 @@ st.markdown("""
             flex: none !important;
         }
 
-        /* 5. Aligner les blocs de statistiques sur la même ligne */
+        /* 5. OPTIMISATION MOBILE : Blocs de statistiques */
         div[data-testid="stHorizontalBlock"]:has(div.stats-block) {
             flex-direction: row !important;
             flex-wrap: nowrap !important;
             align-items: center !important;
-            gap: 5px !important;
+            gap: 2px !important; /* Écart réduit pour gagner de la place */
+        }
+        /* Permettre aux colonnes de se rétrécir intelligemment sans forcer 33% */
+        div[data-testid="stHorizontalBlock"]:has(div.stats-block) > div {
+            min-width: 0 !important; 
         }
 
         /* 6. S'applique spécifiquement aux filtres numériques Min/Max des prospects */
@@ -93,17 +97,18 @@ with col_param:
         
         st.markdown("---")
         st.markdown("**Affichage des Colonnes**")
-        afficher_no = st.checkbox("Afficher No.", value=True)
+        # SEUL Var % EST ACTIVÉ PAR DÉFAUT
+        afficher_no = st.checkbox("Afficher No.", value=False)
         afficher_var = st.checkbox("Afficher Var %", value=True)
-        afficher_tendance = st.checkbox("Afficher Tendance (5j)", value=True)
-        afficher_chaleur = st.checkbox("Afficher Chaleur 52 sem.", value=True)
-        afficher_div = st.checkbox("Afficher Dividendes (Div %)", value=True)
+        afficher_tendance = st.checkbox("Afficher Tendance (5j)", value=False)
+        afficher_chaleur = st.checkbox("Afficher Chaleur 52 sem.", value=False)
+        afficher_div = st.checkbox("Afficher Dividendes (Div %)", value=False)
         
         st.markdown("---")
         st.markdown("**Fonctionnalités Avancées**")
-        activer_taux_change = st.checkbox("Taux de change actif", value=True)
-        afficher_gain_jour = st.checkbox("Calculer le Gain du Jour", value=True)
-        afficher_bandeau = st.checkbox("Afficher le Bandeau des Marchés", value=True)
+        activer_taux_change = st.checkbox("Taux de change actif", value=False)
+        afficher_gain_jour = st.checkbox("Calculer le Gain du Jour", value=False)
+        afficher_bandeau = st.checkbox("Afficher le Bandeau des Marchés", value=False)
         
 with col_btn:
     if st.button(f"🔄 Rafraîchir ({heure_actuelle})", use_container_width=True):
@@ -200,7 +205,6 @@ def construire_donnees(df, dict_yahoo, est_portefeuille=True, symboles_portefeui
             if prevision_1an is not None:
                 df.at[index, 'Pré 1an $ Yahoo'] = prevision_1an
                 
-            # Extraction du rendement des dividendes
             div_yield = infos_gen.get('dividendYield')
             if div_yield is not None:
                 df.at[index, 'Div %'] = div_yield * 100
@@ -358,7 +362,7 @@ try:
                 gains_convertis = np.where(df_live['Devise'] == 'USD', gains_bruts * taux_usdcad, gains_bruts)
                 gains_jour_convertis = np.where(df_live['Devise'] == 'USD', gains_jour_bruts * taux_usdcad, gains_jour_bruts)
                 titre_gain = "Gain net ($ CA)"
-                titre_gain_j = "Gain du Jour ($ CA)"
+                titre_gain_j = "Gain Jour ($ CA)"
                 titre_valeur = "Valeur Nette ($ CA)"
                 symbole_devise = "$ CA"
                 texte_taux = f"<p style='margin: 0px; font-size: 11px; color: gray;'>1 USD = {taux_usdcad:.3f} CAD</p>"
@@ -383,23 +387,32 @@ try:
         gain_j_formate = f"{gain_jour_total_net:,.2f} {symbole_devise}".replace(',', ' ')
         valeur_formate = f"{valeur_totale_nette:,.2f} {symbole_devise}".replace(',', ' ')
 
-        # AFFICHAGE ADAPTATIF DES METRICS (3 OU 4 COLONNES)
-        nombre_colonnes = 4 if afficher_gain_jour else 3
-        cols_s = st.columns(nombre_colonnes)
+        # --- OPTIMISATION CELLULAIRE : Largeurs asymétriques pour le bloc statistiques ---
+        if afficher_gain_jour:
+            # 4 éléments : on donne plus de place aux chiffres, moins au sélecteur
+            cols_s = st.columns([2.5, 2.5, 2.5, 1.8])
+        else:
+            # 3 éléments : on comprime le sélecteur à droite
+            cols_s = st.columns([3, 3, 2])
         
+        # Police réduite à 16px pour éviter les retours à la ligne sur mobile
         with cols_s[0]:
-            st.markdown(f"<div class='stats-block' style='text-align: left; padding-top: 5px;'><p style='margin: 0px; font-size: 14px; color: gray;'>{titre_gain}</p><p style='margin: 0px; font-size: 18px; font-weight: bold;'>{gain_formate}</p></div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='stats-block' style='text-align: left; padding-top: 5px;'><p style='margin: 0px; font-size: 13px; color: gray;'>{titre_gain}</p><p style='margin: 0px; font-size: 16px; font-weight: bold;'>{gain_formate}</p></div>", unsafe_allow_html=True)
             
         if afficher_gain_jour:
             color_j = "#00cc00" if gain_jour_total_net >= 0 else "#ff4d4d"
             signe_j = "+" if gain_jour_total_net > 0 else ""
             with cols_s[1]:
-                st.markdown(f"<div class='stats-block' style='text-align: center; padding-top: 5px;'><p style='margin: 0px; font-size: 14px; color: gray;'>{titre_gain_j}</p><p style='margin: 0px; font-size: 18px; font-weight: bold; color: {color_j};'>{signe_j}{gain_j_formate}</p></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='stats-block' style='text-align: center; padding-top: 5px;'><p style='margin: 0px; font-size: 13px; color: gray;'>{titre_gain_j}</p><p style='margin: 0px; font-size: 16px; font-weight: bold; color: {color_j};'>{signe_j}{gain_j_formate}</p></div>", unsafe_allow_html=True)
             
-        with cols_s[nombre_colonnes-2]:
-            st.markdown(f"<div class='stats-block' style='text-align: center; padding-top: 5px;'><p style='margin: 0px; font-size: 14px; color: gray;'>{titre_valeur}</p><p style='margin: 0px; font-size: 18px; font-weight: bold;'>{valeur_formate}</p>{texte_taux}</div>", unsafe_allow_html=True)
+        # Index de la colonne Valeur et Tri dépendent du nombre d'éléments
+        idx_val = 2 if afficher_gain_jour else 1
+        idx_tri = 3 if afficher_gain_jour else 2
             
-        with cols_s[nombre_colonnes-1]:
+        with cols_s[idx_val]:
+            st.markdown(f"<div class='stats-block' style='text-align: center; padding-top: 5px;'><p style='margin: 0px; font-size: 13px; color: gray;'>{titre_valeur}</p><p style='margin: 0px; font-size: 16px; font-weight: bold;'>{valeur_formate}</p>{texte_taux}</div>", unsafe_allow_html=True)
+            
+        with cols_s[idx_tri]:
             colonne_tri = st.selectbox("Tri", ["Pré G %", "Gain %"], key="tri_portefeuille", label_visibility="collapsed")
 
         if colonne_tri == "Pré G %":
