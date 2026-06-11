@@ -96,9 +96,12 @@ with col_param:
     with st.popover("⚙️ Paramètres", use_container_width=True):
         source_gain = st.selectbox("Calcul du Gain", ["Yahoo", "Affaires", "Moyenne"])
         
-        # --- NOUVEAU : Cases à cocher pour personnaliser l'affichage ---
         st.markdown("---")
         st.markdown("**Affichage**")
+        
+        # --- NOUVEAU : Plus de cases à cocher pour une personnalisation totale ---
+        afficher_no = st.checkbox("Afficher No.", value=True)
+        afficher_var = st.checkbox("Afficher Var %", value=True)
         afficher_tendance = st.checkbox("Afficher Tendance (5j)", value=True)
         afficher_chaleur = st.checkbox("Afficher Chaleur 52 sem.", value=True)
         
@@ -294,19 +297,31 @@ try:
     tab1, tab2, tab3 = st.tabs(["💰 Portefeuille", "🎯 Pros CAD", "🎯 Pros US"])
 
     # --- LISTE DYNAMIQUE DES COLONNES POUR L'ONGLET PORTEFEUILLE ---
-    colonnes_base_port = ["No.", "Symbole", "Prix $", "Var %"]
+    colonnes_base_port = []
+    if afficher_no:
+        colonnes_base_port.append("No.")
+    
+    colonnes_base_port.extend(["Symbole", "Prix $"])
+    
+    if afficher_var:
+        colonnes_base_port.append("Var %")
     if afficher_tendance:
         colonnes_base_port.append("Tendance")
     if afficher_chaleur:
         colonnes_base_port.append("Chaleur 52s")
+        
     colonnes_base_port.extend(["Pré 1an $ Display", "Pré 1an $ Aff Display", "Pré G %", "Achat $", "Qtée", "Gain %", "Gain $", "Date Achat"])
 
     # --- LISTE DYNAMIQUE DES COLONNES POUR LES ONGLETS PROSPECTS ---
-    colonnes_base_pros = ["Symbole", "Prix $", "Var %"]
+    colonnes_base_pros = ["Symbole", "Prix $"]
+    
+    if afficher_var:
+        colonnes_base_pros.append("Var %")
     if afficher_tendance:
         colonnes_base_pros.append("Tendance")
     if afficher_chaleur:
         colonnes_base_pros.append("Chaleur 52s")
+        
     colonnes_base_pros.extend(["Pré 1an $ Display", "Pré 1an $ Aff Display", "Pré G %"])
 
     # --- ONGLET 1 : PORTEFEUILLE ---
@@ -368,7 +383,7 @@ try:
             use_container_width=True,
             hide_index=True,
             height=hauteur_dynamique,
-            column_order=colonnes_base_port, # <- Utilisation de la liste dynamique ici
+            column_order=colonnes_base_port, # Utilisation de la liste dynamique
             column_config={
                 "No.": st.column_config.NumberColumn("No.", format="%d"),
                 "Symbole": st.column_config.LinkColumn("Symbole", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)"),
@@ -420,7 +435,7 @@ try:
             use_container_width=True,
             hide_index=True,
             height=hauteur_cad,
-            column_order=colonnes_base_pros, # <- Utilisation de la liste dynamique ici
+            column_order=colonnes_base_pros, # Utilisation de la liste dynamique
             column_config={
                 "Symbole": st.column_config.LinkColumn("Symbole", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)"),
                 "Prix $": st.column_config.NumberColumn("Prix $", format="$ %.2f"),
@@ -459,7 +474,7 @@ try:
             use_container_width=True,
             hide_index=True,
             height=hauteur_usd,
-            column_order=colonnes_base_pros, # <- Utilisation de la liste dynamique ici
+            column_order=colonnes_base_pros, # Utilisation de la liste dynamique
             column_config={
                 "Symbole": st.column_config.LinkColumn("Symbole", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)"),
                 "Prix $": st.column_config.NumberColumn("Prix $", format="$ %.2f"),
