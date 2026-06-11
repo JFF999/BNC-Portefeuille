@@ -85,6 +85,12 @@ def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
     df = df.copy() 
     df['Devise'] = 'USD'  
     df['Possede'] = False  
+    
+    if 'Pré 1an $' in df.columns and not est_portefeuille:
+        df = df.rename(columns={'Pré 1an $': 'Pré 1an $ Fichier'})
+        
+    df['Pré 1an $ Yahoo'] = np.nan
+    
     for index, row in df.iterrows():
         symbole = row.get('Symbole')
         if pd.notna(symbole):
@@ -121,7 +127,7 @@ def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
                 prevision_1an = infos_generales.get('targetMeanPrice')
                 
                 if prevision_1an is not None:
-                    df.at[index, 'Pré 1an $'] = prevision_1an
+                    df.at[index, 'Pré 1an $ Yahoo'] = prevision_1an
                 
                 devise_officielle = infos_generales.get('currency')
                 if devise_officielle:
@@ -133,48 +139,36 @@ def mise_a_jour_prix(df, est_portefeuille=True, symboles_portefeuille=None):
                 pass
     return df
 
-# --- LOGIQUE DE CALCUL INTELLIGENTE ET HYPER-SÉCURISÉE ---
-def calculer_potentiel_gain(df, source):
+# --- LOGIQUE DE CALCUL INTELLIGENTE ET SÉCURISÉE ---
+def calculer_potentiel_gain(df, source, est_portefeuille=True):
     df = df.copy()
     if 'Prix $' not in df.columns:
         return df
         
     prix = pd.to_numeric(df['Prix $'], errors='coerce')
+    yahoo = pd.to_numeric(df['Pré 1an $ Yahoo'], errors='coerce')
     
-    # Sécurité sur la colonne Yahoo de base
-    if 'Pré 1an $' in df.columns:
-        yahoo = pd.to_numeric(df['Pré 1an $'], errors='coerce')
+    if est_portefeuille:
+        affaires = pd.to_numeric(df.get('Pré 1an $ Affaires', np.nan), errors='coerce').replace(0, np.nan)
+        yahoo_base = pd.to_numeric(df.get('Pré 1an $', np.nan), errors='coerce')
+        yahoo = yahoo.fillna(yahoo_base)
     else:
-        yahoo = pd.Series(np.nan, index=df.index)
-        
-    # --- LA CORRECTION EST ICI ---
-    # Recherche robuste : trouve n'importe quelle colonne contenant "Aff" (ex: "Pré 1an Aff", "Affaires", etc.)
-    col_affaires = next((c for c in df.columns if 'Aff' in str(c)), None)
-    
-    if col_affaires:
-        # Si la colonne est trouvée, on convertit et on remplace les 0 par Vide (NaN) pour éviter les crashs
-        affaires = pd.to_numeric(df[col_affaires], errors='coerce').replace(0, np.nan)
-        # On uniformise le nom de la colonne pour l'affichage visuel
-        df['Pré 1an $ Affaires'] = affaires
-    else:
-        # Si vous n'avez pas encore mis la colonne dans Excel, on génère du vide sans planter !
-        affaires = pd.Series(np.nan, index=df.index)
-        df['Pré 1an $ Affaires'] = np.nan
+        affaires = pd.to_numeric(df.get('Pré 1an $ Fichier', np.nan), errors='coerce').replace(0, np.nan)
     
     if source == "Yahoo":
-        cible = yahoo
+        cible = yahoo.fillna(affaires)
     elif source == "Affaires":
-        # Règle du zéro : Si Affaires est vide ou 0, on prend la cible Yahoo en secours
         cible = affaires.fillna(yahoo)
     else: # Moyenne
         temp = pd.DataFrame({'Y': yahoo, 'A': affaires})
-        # Calcule la moyenne et ignore automatiquement la colonne Affaires si elle est à NaN/0
         cible = temp.mean(axis=1, skipna=True)
         
-    # Calcul dynamique sécurisé
     mask = (prix > 0) & cible.notna()
     df.loc[mask, 'Pré G %'] = (cible[mask] - prix[mask]) / prix[mask]
     
+    df['Pré 1an $ Display'] = yahoo
+    df['Pré 1an $ Aff Display'] = affaires
+        
     return df
 
 try:
@@ -194,7 +188,7 @@ try:
     # --- ONGLET 1 : PORTEFEUILLE ---
     with tab1:
         df_live = mise_a_jour_prix(df_portefeuille_actif, est_portefeuille=True)
-        df_live = calculer_potentiel_gain(df_live, source_gain)
+        df_live = calculer_potentiel_gain(df_live, source_gain, est_portefeuille=True)
 
         for col in ["Pré G %", "Gain %", "Var %"]:
             if col in df_live.columns:
@@ -243,14 +237,17 @@ try:
             use_container_width=True,
             hide_index=True,
             height=hauteur_dynamique,
-            column_order=["No.", "Symbole", "Prix $", "Var %", "Pré 1an $", "Pré 1an $ Affaires", "Pré G %", "Achat $", "Qtée", "Gain %", "Gain $", "Date Achat"],
+            column_order=["No.", "Symbole", "Prix $", "Var %", "Pré 1an $ Display", "Pré 1an $ Aff Display", "Pré G %", "Achat $", "Qtée", "Gain %", "Gain $", "Date Achat"],
             column_config={
                 "No.": st.column_config.NumberColumn("No.", format="%d"),
                 "Symbole": st.column_config.LinkColumn("Symbole", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)"),
                 "Pré G %": st.column_config.NumberColumn(format="%.1f %%"),
                 "Prix $": st.column_config.NumberColumn(format="$ %.2f"),
-                "Pré 1an $": st.column_config.NumberColumn("Pré 1an $ YF", format="$ %.2f"),
-                "Pré 1an $ Affaires": st.column_config.NumberColumn("Pré 1an $ Aff.", format="$ %.2f"),
+                
+                # OPTIMISATION DE LARGEUR : Saut de ligne visuel \n
+                "Pré 1an $ Display": st.column_config.NumberColumn("Pré 1an $\nYahoo", format="$ %.2f"),
+                "Pré 1an $ Aff Display": st.column_config.NumberColumn("Pré 1an $\nAffaires", format="$ %.2f"),
+                
                 "Achat $": st.column_config.NumberColumn(format="$ %.2f"),
                 "Gain %": st.column_config.NumberColumn(format="%.1f %%"),
                 "Var %": st.column_config.NumberColumn(format="%.1f %%"),
@@ -261,7 +258,7 @@ try:
 
     # --- TRAITEMENT CENTRALISÉ DES PROSPECTS ---
     df_live_prospects = mise_a_jour_prix(df_base_prospects, est_portefeuille=False, symboles_portefeuille=symboles_possedes)
-    df_live_prospects = calculer_potentiel_gain(df_live_prospects, source_gain)
+    df_live_prospects = calculer_potentiel_gain(df_live_prospects, source_gain, est_portefeuille=False)
 
     for col in ["Pré G %", "Var %"]:
         if col in df_live_prospects.columns:
@@ -297,13 +294,16 @@ try:
             use_container_width=True,
             hide_index=True,
             height=hauteur_cad,
-            column_order=["Symbole", "Prix $", "Var %", "Pré 1an $", "Pré 1an $ Affaires", "Pré G %"],
+            column_order=["Symbole", "Prix $", "Var %", "Pré 1an $ Display", "Pré 1an $ Aff Display", "Pré G %"],
             column_config={
                 "Symbole": st.column_config.LinkColumn("Symbole", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)"),
                 "Prix $": st.column_config.NumberColumn("Prix $", format="$ %.2f"),
                 "Var %": st.column_config.NumberColumn("Var %", format="%.1f %%"),
-                "Pré 1an $": st.column_config.NumberColumn("Pré 1an $ YF", format="$ %.2f"),
-                "Pré 1an $ Affaires": st.column_config.NumberColumn("Pré 1an $ Aff.", format="$ %.2f"),
+                
+                # OPTIMISATION DE LARGEUR : Saut de ligne visuel \n
+                "Pré 1an $ Display": st.column_config.NumberColumn("Pré 1an $\nYahoo", format="$ %.2f"),
+                "Pré 1an $ Aff Display": st.column_config.NumberColumn("Pré 1an $\nAffaires", format="$ %.2f"),
+                
                 "Pré G %": st.column_config.NumberColumn("Pré G %", format="%.1f %%")
             }
         )
@@ -333,13 +333,16 @@ try:
             use_container_width=True,
             hide_index=True,
             height=hauteur_usd,
-            column_order=["Symbole", "Prix $", "Var %", "Pré 1an $", "Pré 1an $ Affaires", "Pré G %"],
+            column_order=["Symbole", "Prix $", "Var %", "Pré 1an $ Display", "Pré 1an $ Aff Display", "Pré G %"],
             column_config={
                 "Symbole": st.column_config.LinkColumn("Symbole", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)"),
                 "Prix $": st.column_config.NumberColumn("Prix $", format="$ %.2f"),
                 "Var %": st.column_config.NumberColumn("Var %", format="%.1f %%"),
-                "Pré 1an $": st.column_config.NumberColumn("Pré 1an $ YF", format="$ %.2f"),
-                "Pré 1an $ Affaires": st.column_config.NumberColumn("Pré 1an $ Aff.", format="$ %.2f"),
+                
+                # OPTIMISATION DE LARGEUR : Saut de ligne visuel \n
+                "Pré 1an $ Display": st.column_config.NumberColumn("Pré 1an $\nYahoo", format="$ %.2f"),
+                "Pré 1an $ Aff Display": st.column_config.NumberColumn("Pré 1an $\nAffaires", format="$ %.2f"),
+                
                 "Pré G %": st.column_config.NumberColumn("Pré G %", format="%.1f %%")
             }
         )
