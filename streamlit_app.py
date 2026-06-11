@@ -46,6 +46,11 @@ st.markdown("""
         div[data-testid="stHorizontalBlock"]:has(div[data-testid="stNumberInput"]) > div {
             min-width: 110px !important; 
         }
+        
+        /* 4. Masquer les icônes par défaut de Streamlit en haut à droite */
+        header {
+            visibility: hidden !important;
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -150,10 +155,8 @@ def calculer_potentiel_gain(df, source):
     yahoo_live = pd.to_numeric(df.get('Pré 1an $ Yahoo', np.nan), errors='coerce')
     yahoo_base = pd.to_numeric(df.get('Pré 1an $', np.nan), errors='coerce')
     
-    # Secours Yahoo : Si Yahoo ne renvoie rien en direct, on utilise la cible Excel de base
     yahoo = yahoo_live.fillna(yahoo_base)
     
-    # CORRECTION ICI : Recherche dynamique de la colonne Affaires dans Portefeuille ET Prospects
     col_affaires = next((c for c in df.columns if 'Aff' in str(c)), None)
     if col_affaires:
         affaires = pd.to_numeric(df[col_affaires], errors='coerce').replace(0, np.nan)
@@ -171,7 +174,6 @@ def calculer_potentiel_gain(df, source):
     mask = (prix > 0) & cible.notna()
     df.loc[mask, 'Pré G %'] = (cible[mask] - prix[mask]) / prix[mask]
     
-    # On crée ces colonnes propres pour l'affichage final
     df['Pré 1an $ Display'] = yahoo
     df['Pré 1an $ Aff Display'] = affaires
         
@@ -206,7 +208,6 @@ try:
         gain_formate = f"{gain_total:,.2f} $".replace(',', ' ')
         valeur_formate = f"{valeur_totale:,.2f} $".replace(',', ' ')
 
-        # --- NOUVEAU : Affichage ultra compact (Gain, Valeur, Tri) sur la même ligne ---
         col_gain, col_val, col_tri = st.columns(3)
         with col_gain:
             st.markdown(f"""
@@ -225,9 +226,8 @@ try:
             """, unsafe_allow_html=True)
             
         with col_tri:
-            colonne_tri = st.selectbox("Tri", ["Pré G %", "Gain %"], key="tri_portefeuille")
+            colonne_tri = st.selectbox("Tri", ["Pré G %", "Gain %"], key="tri_portefeuille", label_visibility="collapsed")
 
-        # Application du tri
         if colonne_tri == "Pré G %":
             df_live = df_live.sort_values(by="Pré G %", ascending=True) 
         elif colonne_tri == "Gain %":
@@ -257,11 +257,8 @@ try:
                 "Symbole": st.column_config.LinkColumn("Symbole", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)"),
                 "Pré G %": st.column_config.NumberColumn(format="%.1f %%"),
                 "Prix $": st.column_config.NumberColumn(format="$ %.2f"),
-                
-                # TITRES ULTRA COMPACTS
                 "Pré 1an $ Display": st.column_config.NumberColumn("Pré YF", format="$ %.2f"),
                 "Pré 1an $ Aff Display": st.column_config.NumberColumn("Pré Aff", format="$ %.2f"),
-                
                 "Achat $": st.column_config.NumberColumn(format="$ %.2f"),
                 "Gain %": st.column_config.NumberColumn(format="%.1f %%"),
                 "Var %": st.column_config.NumberColumn(format="%.1f %%"),
@@ -313,10 +310,8 @@ try:
                 "Symbole": st.column_config.LinkColumn("Symbole", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)"),
                 "Prix $": st.column_config.NumberColumn("Prix $", format="$ %.2f"),
                 "Var %": st.column_config.NumberColumn("Var %", format="%.1f %%"),
-                
                 "Pré 1an $ Display": st.column_config.NumberColumn("Pré YF", format="$ %.2f"),
                 "Pré 1an $ Aff Display": st.column_config.NumberColumn("Pré Aff", format="$ %.2f"),
-                
                 "Pré G %": st.column_config.NumberColumn("Pré G %", format="%.1f %%")
             }
         )
@@ -351,10 +346,8 @@ try:
                 "Symbole": st.column_config.LinkColumn("Symbole", display_text=r"https://ca\.finance\.yahoo\.com/quote/(.*)"),
                 "Prix $": st.column_config.NumberColumn("Prix $", format="$ %.2f"),
                 "Var %": st.column_config.NumberColumn("Var %", format="%.1f %%"),
-                
                 "Pré 1an $ Display": st.column_config.NumberColumn("Pré YF", format="$ %.2f"),
                 "Pré 1an $ Aff Display": st.column_config.NumberColumn("Pré Aff", format="$ %.2f"),
-                
                 "Pré G %": st.column_config.NumberColumn("Pré G %", format="%.1f %%")
             }
         )
