@@ -86,7 +86,7 @@ with col_param:
         st.markdown("---")
         st.markdown("**Fonctionnalités Avancées**")
         activer_taux_change = st.checkbox("Taux de change actif", value=False)
-        afficher_gain_jour = st.checkbox("Calculer le Gain du Jour", value=False)
+        afficher_gain_jour = st.checkbox("Calculer le Gain du Jour", value=True)
         afficher_bandeau = st.checkbox("Afficher le Bandeau des Marchés", value=False)
         
         # --- NOUVEAU : Case à cocher pour les Alertes ---
