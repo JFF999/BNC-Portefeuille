@@ -125,7 +125,8 @@ def telecharger_tous_les_prix_yahoo(symboles):
         except Exception:
             return sym, pd.DataFrame(), {}
 
-    with ThreadPoolExecutor(max_workers=15) as executor:
+    # MODIFICATION 1 : Limite à 10 pour éviter le blocage Yahoo
+    with ThreadPoolExecutor(max_workers=10) as executor:
         futures = [executor.submit(fetch_single, sym) for sym in symboles]
         for future in as_completed(futures):
             sym, hist, info = future.result()
@@ -141,7 +142,7 @@ def construire_donnees(df, dict_yahoo, est_portefeuille=True, symboles_portefeui
     df['Chaleur 52s'] = np.nan 
     df['Div %'] = np.nan
     df['Gain Jour $'] = 0.0
-    df['Symbole Brut'] = "" # Sauvegarde du texte brut pour les alertes
+    df['Symbole Brut'] = "" 
     tendances = []
     
     if 'Pré 1an $' in df.columns and not est_portefeuille:
@@ -287,12 +288,15 @@ try:
             tous_les_symboles.update([str(s).strip() for s in df_temp['Symbole'].dropna() if pd.notna(s)])
     tous_les_symboles.update(["^GSPC", "^IXIC", "^GSPTSE"])
 
+    # MODIFICATION 1 : Tri de la liste pour sécuriser la requête Yahoo
+    symboles_liste_stricte = tuple(sorted(list(tous_les_symboles)))
+
     with st.spinner("Mode Turbo : Chargement des marchés mondiaux..."):
-        yahoo_data = telecharger_tous_les_prix_yahoo(list(tous_les_symboles))
+        yahoo_data = telecharger_tous_les_prix_yahoo(symboles_liste_stricte)
 
     symboles_possedes = tuple(set(df_portefeuille_actif['Symbole'].dropna().astype(str).str.strip()))
 
-    # --- TRAITEMENT GLOBAL DES DONNÉES (Pour permettre les Alertes avant les onglets) ---
+    # --- TRAITEMENT GLOBAL DES DONNÉES ---
     # 1. Portefeuille
     df_live = construire_donnees(df_portefeuille_actif, yahoo_data, est_portefeuille=True)
     df_live = calculer_potentiel_gain(df_live, source_gain, est_portefeuille=True)
@@ -318,9 +322,12 @@ try:
                 m_signe = "+" if m_var > 0 else ""
                 m_couleur = "#00cc00" if m_var > 0 else "#ff4d4d"
                 cols_m[idx].markdown(f"**{nom_m}** : {m_actuel:,.2f} (<span style='color:{m_couleur}'>{m_signe}{m_var:.2f}%</span>)", unsafe_allow_html=True)
+            else:
+                # MODIFICATION 1 : Évite que le bandeau ne disparaisse si Yahoo bloque un indice
+                cols_m[idx].markdown(f"**{nom_m}** : Indisponible", unsafe_allow_html=True)
         st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
 
-    # --- NOUVEAU : MODULE D'ALERTES INTELLIGENTES ---
+    # --- MODULE D'ALERTES INTELLIGENTES ---
     if afficher_alertes:
         alertes_generees = []
         
@@ -328,10 +335,8 @@ try:
         if not df_live.empty:
             for _, row in df_live.iterrows():
                 sym = row.get('Symbole Brut', 'Action')
-                # Alerte Prix Cible
                 if pd.notna(row.get('Pré G %')) and row['Pré G %'] <= 0:
                     alertes_generees.append(f"🎯 **{sym}** a atteint son objectif de prix !")
-                # Alerte Volatilité
                 if pd.notna(row.get('Var %')):
                     if row['Var %'] >= 5.0:
                         alertes_generees.append(f"🚀 **{sym}** s'envole aujourd'hui (+{row['Var %']:.1f}%)")
@@ -409,7 +414,6 @@ try:
         gain_j_formate = f"{gain_jour_total_net:,.2f} {symbole_devise}".replace(',', ' ')
         valeur_formate = f"{valeur_totale_nette:,.2f} {symbole_devise}".replace(',', ' ')
 
-        # --- OPTIMISATION CELLULAIRE BLOC STATS ---
         if afficher_gain_jour:
             cols_s = st.columns([2.5, 2.5, 2.5, 1.8])
         else:
