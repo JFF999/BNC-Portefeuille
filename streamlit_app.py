@@ -36,7 +36,7 @@ st.markdown("""
         }
         div[data-testid="stHorizontalBlock"]:has(div.stats-block) > div { min-width: 0 !important; }
         
-        /* FILTRES NUMÉRIQUES PROSPECTS */
+        /* FILTRES NUMÉRIQUES PROSPEcripts */
         div[data-testid="stHorizontalBlock"]:has(div[data-testid="stNumberInput"]) {
             flex-direction: row !important; flex-wrap: nowrap !important; gap: 15px !important;
         }
@@ -125,7 +125,6 @@ def telecharger_tous_les_prix_yahoo(symboles):
         except Exception:
             return sym, pd.DataFrame(), {}
 
-    # MODIFICATION 1 : Limite à 10 pour éviter le blocage Yahoo
     with ThreadPoolExecutor(max_workers=10) as executor:
         futures = [executor.submit(fetch_single, sym) for sym in symboles]
         for future in as_completed(futures):
@@ -221,8 +220,15 @@ def calculer_potentiel_gain(df, source, est_portefeuille=True):
         
     prix = pd.to_numeric(df['Prix $'], errors='coerce')
     yahoo_live = pd.to_numeric(df.get('Pré 1an $ Yahoo', np.nan), errors='coerce')
-    yahoo_base = pd.to_numeric(df.get('Pré 1an $', np.nan), errors='coerce')
     
+    # --- LA CORRECTION EST ICI : Le Plan B (Fichier Excel) est réparé ---
+    if 'Pré 1an $ Fichier' in df.columns:
+        yahoo_base = pd.to_numeric(df['Pré 1an $ Fichier'], errors='coerce')
+    elif 'Pré 1an $' in df.columns:
+        yahoo_base = pd.to_numeric(df['Pré 1an $'], errors='coerce')
+    else:
+        yahoo_base = pd.Series(np.nan, index=df.index)
+        
     yahoo = yahoo_live.fillna(yahoo_base)
     
     col_affaires = next((c for c in df.columns if 'Aff' in str(c)), None)
@@ -288,7 +294,6 @@ try:
             tous_les_symboles.update([str(s).strip() for s in df_temp['Symbole'].dropna() if pd.notna(s)])
     tous_les_symboles.update(["^GSPC", "^IXIC", "^GSPTSE"])
 
-    # MODIFICATION 1 : Tri de la liste pour sécuriser la requête Yahoo
     symboles_liste_stricte = tuple(sorted(list(tous_les_symboles)))
 
     with st.spinner("Mode Turbo : Chargement des marchés mondiaux..."):
@@ -323,7 +328,6 @@ try:
                 m_couleur = "#00cc00" if m_var > 0 else "#ff4d4d"
                 cols_m[idx].markdown(f"**{nom_m}** : {m_actuel:,.2f} (<span style='color:{m_couleur}'>{m_signe}{m_var:.2f}%</span>)", unsafe_allow_html=True)
             else:
-                # MODIFICATION 1 : Évite que le bandeau ne disparaisse si Yahoo bloque un indice
                 cols_m[idx].markdown(f"**{nom_m}** : Indisponible", unsafe_allow_html=True)
         st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
 
