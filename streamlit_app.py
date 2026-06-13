@@ -36,7 +36,7 @@ st.markdown("""
         }
         div[data-testid="stHorizontalBlock"]:has(div.stats-block) > div { min-width: 0 !important; }
         
-        /* FILTRES NUMÉRIQUES PROSPEcripts */
+        /* FILTRES NUMÉRIQUES PROSPECTS */
         div[data-testid="stHorizontalBlock"]:has(div[data-testid="stNumberInput"]) {
             flex-direction: row !important; flex-wrap: nowrap !important; gap: 15px !important;
         }
@@ -61,6 +61,20 @@ def obtenir_taux_change():
         return yf.Ticker("USDCAD=X").history(period="1d")['Close'].iloc[-1]
     except Exception:
         return 1.35 
+
+# --- FONCTION D'EXPORTATION EXCEL/CSV ---
+def preparer_export_csv(df):
+    df_export = df.copy()
+    # On remplace l'URL par le symbole brut pour que ce soit propre dans Excel
+    if 'Symbole Brut' in df_export.columns:
+        df_export['Symbole'] = df_export['Symbole Brut']
+        df_export = df_export.drop(columns=['Symbole Brut'])
+    # On retire la liste des graphiques car Excel ne peut pas la lire
+    if 'Tendance' in df_export.columns:
+        df_export = df_export.drop(columns=['Tendance'])
+    
+    # On crée un CSV formaté pour la version Francophone d'Excel (séparateur point-virgule)
+    return df_export.to_csv(index=False, sep=';').encode('utf-8-sig')
 
 # --- TITRE PRINCIPAL ---
 st.title("📈 BNC LIVE")
@@ -88,8 +102,6 @@ with col_param:
         activer_taux_change = st.checkbox("Taux de change actif", value=False)
         afficher_gain_jour = st.checkbox("Calculer le Gain du Jour", value=True)
         afficher_bandeau = st.checkbox("Afficher le Bandeau des Marchés", value=False)
-        
-        # --- NOUVEAU : Case à cocher pour les Alertes ---
         afficher_alertes = st.checkbox("Activer les Alertes Intelligentes", value=False)
         
 with col_btn:
@@ -221,7 +233,6 @@ def calculer_potentiel_gain(df, source, est_portefeuille=True):
     prix = pd.to_numeric(df['Prix $'], errors='coerce')
     yahoo_live = pd.to_numeric(df.get('Pré 1an $ Yahoo', np.nan), errors='coerce')
     
-    # --- LA CORRECTION EST ICI : Le Plan B (Fichier Excel) est réparé ---
     if 'Pré 1an $ Fichier' in df.columns:
         yahoo_base = pd.to_numeric(df['Pré 1an $ Fichier'], errors='coerce')
     elif 'Pré 1an $' in df.columns:
@@ -287,7 +298,6 @@ try:
     else:
         df_portefeuille_actif = df_base_portefeuille.copy()
 
-    # MOTEUR TURBO : Extraction et ajout des symboles
     tous_les_symboles = set()
     for df_temp in [df_portefeuille_actif, df_base_prospects]:
         if 'Symbole' in df_temp.columns:
@@ -302,13 +312,11 @@ try:
     symboles_possedes = tuple(set(df_portefeuille_actif['Symbole'].dropna().astype(str).str.strip()))
 
     # --- TRAITEMENT GLOBAL DES DONNÉES ---
-    # 1. Portefeuille
     df_live = construire_donnees(df_portefeuille_actif, yahoo_data, est_portefeuille=True)
     df_live = calculer_potentiel_gain(df_live, source_gain, est_portefeuille=True)
     for col in ["Pré G %", "Gain %", "Var %"]:
         if col in df_live.columns: df_live[col] = pd.to_numeric(df_live[col], errors='coerce') * 100
 
-    # 2. Prospects
     df_live_prospects = construire_donnees(df_base_prospects, yahoo_data, est_portefeuille=False, symboles_portefeuille=symboles_possedes)
     df_live_prospects = calculer_potentiel_gain(df_live_prospects, source_gain, est_portefeuille=False)
     for col in ["Pré G %", "Var %"]:
@@ -334,8 +342,6 @@ try:
     # --- MODULE D'ALERTES INTELLIGENTES ---
     if afficher_alertes:
         alertes_generees = []
-        
-        # Scan du Portefeuille
         if not df_live.empty:
             for _, row in df_live.iterrows():
                 sym = row.get('Symbole Brut', 'Action')
@@ -347,14 +353,12 @@ try:
                     elif row['Var %'] <= -5.0:
                         alertes_generees.append(f"🔻 **{sym}** chute fortement ({row['Var %']:.1f}%)")
                         
-        # Scan des Prospects
         if not df_live_prospects.empty:
             for _, row in df_live_prospects.iterrows():
                 sym = row.get('Symbole Brut', 'Action')
                 if pd.notna(row.get('Chaleur 52s')) and row['Chaleur 52s'] <= 5.0:
                     alertes_generees.append(f"🔥 **{sym}** (Prospect) est à son plus bas sur 1 an !")
         
-        # Affichage des alertes
         if alertes_generees:
             html_alertes = "<div class='alert-box'><strong>🚨 Alertes Actives :</strong><br>"
             for alerte in alertes_generees:
@@ -472,12 +476,22 @@ try:
                 "Date Achat": st.column_config.DatetimeColumn(format="YYYY-MM-DD")
             }
         )
+        
+        # --- BOUTON D'EXPORTATION ---
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.download_button(
+            label="💾 Exporter ces données (CSV)",
+            data=preparer_export_csv(df_live),
+            file_name=f"Portefeuille_Calculs_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv",
+            key="export_portefeuille"
+        )
 
     # --- ONGLET 2 : PROSPECTS CAD ---
     with tab2:
         col_min, col_max, col_vide = st.columns([1, 1, 2])
         with col_min:
-            min_cad = st.number_input("Min %", min_value=-100, max_value=500, value=25, step=5, key="min_cad")
+            min_cad = st.number_input("Min %", min_value=-100, max_value=500, value=-50, step=5, key="min_cad")
         with col_max:
             max_cad = st.number_input("Max %", min_value=-100, max_value=500, value=100, step=5, key="max_cad")
 
@@ -512,12 +526,22 @@ try:
                 "Pré G %": st.column_config.NumberColumn("Pré G %", format="%.1f %%")
             }
         )
+        
+        # --- BOUTON D'EXPORTATION ---
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.download_button(
+            label="💾 Exporter ces données (CSV)",
+            data=preparer_export_csv(df_prospects_cad),
+            file_name=f"Prospects_CAD_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv",
+            key="export_prospects_cad"
+        )
 
     # --- ONGLET 3 : PROSPECTS US ---
     with tab3:
         col_min_us, col_max_us, col_vide_us = st.columns([1, 1, 2])
         with col_min_us:
-            min_us = st.number_input("Min %", min_value=-100, max_value=500, value=25, step=5, key="min_us")
+            min_us = st.number_input("Min %", min_value=-100, max_value=500, value=-50, step=5, key="min_us")
         with col_max_us:
             max_us = st.number_input("Max %", min_value=-100, max_value=500, value=100, step=5, key="max_us")
 
@@ -551,6 +575,16 @@ try:
                 "Pré 1an $ Aff Display": st.column_config.NumberColumn("Pré Aff", format="$ %.2f"),
                 "Pré G %": st.column_config.NumberColumn("Pré G %", format="%.1f %%")
             }
+        )
+        
+        # --- BOUTON D'EXPORTATION ---
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.download_button(
+            label="💾 Exporter ces données (CSV)",
+            data=preparer_export_csv(df_prospects_usd),
+            file_name=f"Prospects_US_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv",
+            key="export_prospects_us"
         )
         
 except Exception as e:
